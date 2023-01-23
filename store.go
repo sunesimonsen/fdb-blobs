@@ -12,7 +12,7 @@ import (
 
 type BlobStore interface {
 	Read(id string) ([]byte, error)
-	Create(data []byte) (string, error)
+	Create(reader io.Reader) (string, error)
 	BlobReader(id string) BlobReader
 }
 
@@ -126,27 +126,35 @@ func (bs *fdbBlobStore) Read(id string) ([]byte, error) {
 	return blob.Bytes(), err
 }
 
-func (bs *fdbBlobStore) write(id string, data []byte) error {
-	buf := bytes.NewBuffer(data)
-
+func (bs *fdbBlobStore) write(id string, reader io.Reader) error {
 	_, err := bs.db.Transact(func(tr fdb.Transaction) (any, error) {
 		var i int
-		for buf.Len() > 0 {
-			chunk := buf.Next(bs.chunkSize)
-			tr.Set(tuple.Tuple{bs.ns, "blobs", id, "bytes", i}, chunk)
+		chunk := make([]byte, bs.chunkSize)
+
+		for {
+			n, err := io.ReadFull(reader, chunk)
+
+			tr.Set(tuple.Tuple{bs.ns, "blobs", id, "bytes", i}, chunk[0:n])
+
+			if err == io.ErrUnexpectedEOF || err == io.EOF {
+				return nil, nil
+			}
+
+			if err != nil {
+				return nil, err
+			}
+
 			i++
 		}
-
-		return nil, nil
 	})
 
 	return err
 }
 
-func (bs *fdbBlobStore) Create(data []byte) (string, error) {
+func (bs *fdbBlobStore) Create(reader io.Reader) (string, error) {
 	payloadId := ulid.Make().String()
 
-	err := bs.write(payloadId, data)
+	err := bs.write(payloadId, reader)
 
 	if err != nil {
 		return "", err

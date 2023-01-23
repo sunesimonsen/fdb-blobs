@@ -5,6 +5,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
@@ -42,7 +43,9 @@ func TestCreate(t *testing.T) {
 	s := setupTestStore()
 
 	t.Run("a newly created blob can be extracted with the returned id", func(t *testing.T) {
-		data := []byte("my-blob")
+		text := "my-blob"
+
+		data := strings.NewReader(text)
 		id, err := s.Create(data)
 
 		assertNoError(t, err)
@@ -51,7 +54,7 @@ func TestCreate(t *testing.T) {
 
 		assertNoError(t, err)
 
-		want := data
+		want := []byte(text)
 
 		if !reflect.DeepEqual(want, got) {
 			t.Errorf("wanted %v, got %v", want, got)
