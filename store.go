@@ -12,7 +12,6 @@ import (
 
 type BlobStore interface {
 	Read(id string) ([]byte, error)
-	Write(id string, data []byte) error
 	Create(data []byte) (string, error)
 	BlobReader(id string) BlobReader
 }
@@ -127,13 +126,10 @@ func (bs *fdbBlobStore) Read(id string) ([]byte, error) {
 	return blob.Bytes(), err
 }
 
-func (bs *fdbBlobStore) Write(id string, data []byte) error {
+func (bs *fdbBlobStore) write(id string, data []byte) error {
 	buf := bytes.NewBuffer(data)
 
 	_, err := bs.db.Transact(func(tr fdb.Transaction) (any, error) {
-		kr, _ := fdb.PrefixRange(tuple.Tuple{bs.ns, "blobs", id, "bytes"}.Pack())
-		tr.ClearRange(kr)
-
 		var i int
 		for buf.Len() > 0 {
 			chunk := buf.Next(bs.chunkSize)
@@ -150,7 +146,7 @@ func (bs *fdbBlobStore) Write(id string, data []byte) error {
 func (bs *fdbBlobStore) Create(data []byte) (string, error) {
 	payloadId := ulid.Make().String()
 
-	err := bs.Write(payloadId, data)
+	err := bs.write(payloadId, data)
 
 	if err != nil {
 		return "", err
