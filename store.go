@@ -2,6 +2,7 @@ package blobs
 
 import (
 	"bytes"
+	"encoding/binary"
 	"io"
 	"math"
 
@@ -24,7 +25,7 @@ type fdbBlobStore struct {
 }
 
 func NewFdbStore(db fdb.Database, ns string) BlobStore {
-	return &fdbBlobStore{db: db, ns: ns, chunkSize: 10000, chunksPerTransaction: 10}
+	return &fdbBlobStore{db: db, ns: ns, chunkSize: 10000, chunksPerTransaction: 100}
 }
 
 type BlobReader interface {
@@ -80,7 +81,6 @@ func (br *fdbBlobReader) Read(buf []byte) (int, error) {
 		entries, err := tr.GetRange(chunkRange, fdb.RangeOptions{}).GetSliceWithError()
 
 		if err != nil {
-
 			return read, err
 		}
 
@@ -126,26 +126,51 @@ func (bs *fdbBlobStore) Read(id string) ([]byte, error) {
 	return blob.Bytes(), err
 }
 
+func encodeUInt64(n uint64) []byte {
+	bs := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bs, n)
+	return bs
+}
+
 func (bs *fdbBlobStore) write(id string, reader io.Reader) error {
-	_, err := bs.db.Transact(func(tr fdb.Transaction) (any, error) {
-		var i int
-		chunk := make([]byte, bs.chunkSize)
+	chunk := make([]byte, bs.chunkSize)
+	var written uint64
+	var chunkIndex int
 
-		for {
-			n, err := io.ReadFull(reader, chunk)
+	for {
+		finished, err := bs.db.Transact(func(tr fdb.Transaction) (any, error) {
+			for i := 0; i < bs.chunksPerTransaction; i++ {
+				n, err := io.ReadFull(reader, chunk)
 
-			tr.Set(tuple.Tuple{bs.ns, "blobs", id, "bytes", i}, chunk[0:n])
+				tr.Set(tuple.Tuple{bs.ns, "blobs", id, "bytes", chunkIndex}, chunk[0:n])
 
-			if err == io.ErrUnexpectedEOF || err == io.EOF {
-				return nil, nil
+				chunkIndex++
+				written += uint64(n)
+
+				if err == io.ErrUnexpectedEOF || err == io.EOF {
+					return true, nil
+				}
+
+				if err != nil {
+					return false, err
+				}
 			}
 
-			if err != nil {
-				return nil, err
-			}
+			return false, nil
+		})
 
-			i++
+		if finished.(bool) {
+			break
 		}
+
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err := bs.db.Transact(func(tr fdb.Transaction) (any, error) {
+		tr.Set(tuple.Tuple{bs.ns, "blobs", id, "len"}, encodeUInt64(written))
+		return nil, nil
 	})
 
 	return err
