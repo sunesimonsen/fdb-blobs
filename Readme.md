@@ -1,5 +1,7 @@
 # fdb-blobs
 
+WARNING - under construction :-)
+
 A blob store for [FoundationDB](https://www.foundationdb.org/) that handles
 arbitrary size blobs by splitting the data into chunks.
 
