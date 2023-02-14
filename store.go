@@ -63,21 +63,18 @@ type fdbBlobReader struct {
 }
 
 func (br *fdbBlobReader) Read(buf []byte) (int, error) {
-	read := 0
-	n := copy(buf, br.buf)
-
-	br.off += int(n)
-	read += int(n)
+	read := copy(buf, br.buf)
+	br.buf = br.buf[read:]
 
 	// This also take care of io.EOF
-	if len(buf) == int(read) {
+	if len(buf) == read {
 		return read, nil
 	}
 
 	_, err := br.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
-		startChunk := br.off / br.chunkSize
-		endChunk := int(math.Ceil(float64(br.off+len(buf)) / float64(br.chunkSize)))
-		endChunkCap := int(math.Min(float64(startChunk+br.chunksPerTransaction), float64(endChunk+1)))
+		startChunk := br.off
+		endChunk := br.off + int(math.Ceil(float64(len(buf)-read)/float64(br.chunkSize)))
+		endChunkCap := int(math.Min(float64(startChunk+br.chunksPerTransaction), float64(endChunk))) + 1
 
 		chunkRange := fdb.KeyRange(fdb.KeyRange{
 			Begin: tuple.Tuple{br.ns, "blobs", br.id, "bytes", startChunk},
@@ -90,20 +87,25 @@ func (br *fdbBlobReader) Read(buf []byte) (int, error) {
 			return read, err
 		}
 
-		for _, v := range entries {
-			n := copy(buf[read:], v.Value)
-			br.off += n
-			read += n
-
-			if read == len(buf) {
-				br.buf = v.Value[n+1:]
-				break
-			}
+		if len(entries) == 0 {
+			// Didn't find any entries, we are done
+			return read, io.EOF
 		}
 
-		if len(entries) < endChunkCap-startChunk {
-			// we hit the end
-			return read, io.EOF
+		for _, v := range entries {
+			n := copy(buf[read:], v.Value)
+			br.off += 1
+			read += n
+
+			if n < len(v.Value) {
+				// No more output buffer, safe the rest for next read
+				br.buf = v.Value[n:]
+				return read, nil
+			} else if len(v.Value) < br.chunkSize {
+				// chunk is too short and we read all of it;
+				// we are now at the end
+				return read, io.EOF
+			}
 		}
 
 		if len(entries[len(entries)-1].Value) < br.chunkSize {
