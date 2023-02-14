@@ -24,8 +24,28 @@ type fdbBlobStore struct {
 	chunksPerTransaction int
 }
 
-func NewFdbStore(db fdb.Database, ns string) BlobStore {
-	return &fdbBlobStore{db: db, ns: ns, chunkSize: 10000, chunksPerTransaction: 100}
+type Option func(br *fdbBlobStore)
+
+func WithChunkSize(chunkSize uint) Option {
+	return func(br *fdbBlobStore) {
+		br.chunkSize = int(chunkSize)
+	}
+}
+
+func WithChunksPerTransaction(chunksPerTransaction uint) Option {
+	return func(br *fdbBlobStore) {
+		br.chunksPerTransaction = int(chunksPerTransaction)
+	}
+}
+
+func NewFdbStore(db fdb.Database, ns string, opts ...Option) BlobStore {
+	store := &fdbBlobStore{db: db, ns: ns, chunkSize: 10000, chunksPerTransaction: 100}
+
+	for _, opt := range opts {
+		opt(store)
+	}
+
+	return store
 }
 
 type BlobReader interface {
@@ -40,20 +60,6 @@ type fdbBlobReader struct {
 	buf                  []byte
 	chunkSize            int
 	chunksPerTransaction int
-}
-
-type BlobStoreOption func(br *fdbBlobStore)
-
-func WithChunkSize(chunkSize uint) BlobStoreOption {
-	return func(br *fdbBlobStore) {
-		br.chunkSize = int(chunkSize)
-	}
-}
-
-func WithChunksPerTransaction(chunksPerTransaction uint) BlobStoreOption {
-	return func(br *fdbBlobStore) {
-		br.chunksPerTransaction = int(chunksPerTransaction)
-	}
 }
 
 func (br *fdbBlobReader) Read(buf []byte) (int, error) {
@@ -93,10 +99,15 @@ func (br *fdbBlobReader) Read(buf []byte) (int, error) {
 				br.buf = v.Value[n+1:]
 				break
 			}
-
 		}
 
 		if len(entries) < endChunkCap-startChunk {
+			// we hit the end
+			return read, io.EOF
+		}
+
+		if len(entries[len(entries)-1].Value) < br.chunkSize {
+			// last chunk was too short
 			// we hit the end
 			return read, io.EOF
 		}
