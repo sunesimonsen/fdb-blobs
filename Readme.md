@@ -23,6 +23,12 @@ Sending arguments to `go test`:
 docker compose run test /run.bash -cover
 ```
 
+Running fuzz tests:
+
+```sh
+docker compose run test /run.bash -fuzz FuzzChunkSizes
+```
+
 ## MIT License
 
 Copyright (c) 2023 Sune Simonsen <mailto:sune@we-knowhow.dk>
