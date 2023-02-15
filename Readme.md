@@ -7,28 +7,34 @@ arbitrary size blobs by splitting the data into chunks.
 
 ## Tests
 
+Start all the services:
+
+```sh
+docker compose up -d
+```
+
 Run all tests:
 
 ```sh
-docker compose run test
+docker compose exec blobs go test
 ```
 
 Run a specific test:
 
 ```sh
-docker compose run test /run.bash -run TestCreate
+docker compose exec blobs go test -run TestCreate
 ```
 
 Sending arguments to `go test`:
 
 ```sh
-docker compose run test /run.bash -cover
+docker compose exec blobs go test -cover
 ```
 
 Running fuzz tests:
 
 ```sh
-docker compose run test /run.bash -fuzz FuzzChunkSizes
+docker compose exec blobs go test -fuzz FuzzChunkSizes
 ```
 
 ## MIT License

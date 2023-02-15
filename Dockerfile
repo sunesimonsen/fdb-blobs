@@ -19,10 +19,10 @@ COPY --from=fdb /var/fdb/scripts/fdb.bash /
 WORKDIR /go/src/app
 COPY . .
 
-COPY run.bash /run.bash
-RUN chmod a+x /run.bash
+COPY start.bash /start.bash
+RUN chmod a+x /start.bash
 
 RUN go get -d -v ./...
 RUN go install -v ./...
 
-CMD ["/run.bash"]
+CMD ["/start.bash"]
