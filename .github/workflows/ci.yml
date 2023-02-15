@@ -12,7 +12,16 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Build docker images
-      run: docker-compose build
+      run: docker compose build
+
+    - name: Run services
+      run: docker compose up -d
 
     - name: Run tests
-      run: docker-compose run test
+      run: docker compose exec blobs go test -cover
+
+    - name: Run vet
+      run: docker compose exec blobs go vet
+
+    - name: Stop services
+      run: docker compose down
