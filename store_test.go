@@ -34,6 +34,18 @@ func setupTestStore(opts ...Option) BlobStore {
 	return NewFdbStore(db, ns, opts...)
 }
 
+func assertError(t testing.TB, got error, want string) {
+	t.Helper()
+
+	if got == nil {
+		t.Errorf("expected an error: %s", want)
+	}
+
+	if got.Error() != want {
+		t.Errorf("wanted error %v, got %v", want, got)
+	}
+}
+
 func assertNoError(t testing.TB, got error) {
 	t.Helper()
 
@@ -43,7 +55,7 @@ func assertNoError(t testing.TB, got error) {
 }
 
 func TestCreateRead(t *testing.T) {
-	s := setupTestStore()
+	s := setupTestStore(WithChunkSize(100))
 
 	t.Run("a newly created blob can be extracted with the returned id", func(t *testing.T) {
 		text := "my-blob"
@@ -64,22 +76,65 @@ func TestCreateRead(t *testing.T) {
 		}
 	})
 
-	t.Run("allows creating and extracting a large blob", func(t *testing.T) {
-		input := make([]byte, 2000)
-		_, err := rand.Read(input)
-		assertNoError(t, err)
+	t.Run("allows creating and extracting blobs of different sizes", func(t *testing.T) {
+		lengths := []int{0, 10, 100, 101, 2000}
 
-		id, err := s.Create(bytes.NewReader(input))
-		assertNoError(t, err)
+		for _, length := range lengths {
+			input := make([]byte, length)
+			_, err := rand.Read(input)
+			assertNoError(t, err)
 
-		data, err := s.Read(id)
-		assertNoError(t, err)
+			id, err := s.Create(bytes.NewReader(input))
+			assertNoError(t, err)
 
-		want := input
-		got := data
+			data, err := s.Read(id)
+			assertNoError(t, err)
 
-		if !reflect.DeepEqual(want, got) {
-			t.Errorf("wanted %v, got %v", want, got)
+			want := input
+			got := data
+
+			if !reflect.DeepEqual(want, got) {
+				t.Errorf("wanted %v, got %v", want, got)
+			}
+		}
+	})
+}
+
+func TestRead(t *testing.T) {
+	s := setupTestStore(WithChunkSize(100))
+
+	t.Run("returns an error for a blob that doesn't exists", func(t *testing.T) {
+		_, err := s.Read("missing")
+		assertError(t, err, "blob not found: \"missing\"")
+	})
+}
+
+func TestLen(t *testing.T) {
+	s := setupTestStore(WithChunkSize(100))
+
+	t.Run("returns an error for a blob that doesn't exists", func(t *testing.T) {
+		_, err := s.Len("missing")
+		assertError(t, err, "blob not found: \"missing\"")
+	})
+
+	t.Run("returns the length of the specified blob", func(t *testing.T) {
+		lengths := []int{0, 10, 100, 101, 2000}
+
+		for _, length := range lengths {
+			input := make([]byte, length)
+			_, err := rand.Read(input)
+			assertNoError(t, err)
+
+			id, err := s.Create(bytes.NewReader(input))
+			assertNoError(t, err)
+
+			want := uint64(length)
+			got, err := s.Len(id)
+			assertNoError(t, err)
+
+			if want != got {
+				t.Errorf("wanted %v, got %v", want, got)
+			}
 		}
 	})
 }

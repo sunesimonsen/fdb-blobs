@@ -2,7 +2,7 @@ package blobs
 
 import (
 	"bytes"
-	"encoding/binary"
+	"fmt"
 	"io"
 	"math"
 
@@ -14,7 +14,8 @@ import (
 type BlobStore interface {
 	Read(id string) ([]byte, error)
 	Create(reader io.Reader) (string, error)
-	BlobReader(id string) BlobReader
+	BlobReader(id string) (BlobReader, error)
+	Len(id string) (uint64, error)
 }
 
 type fdbBlobStore struct {
@@ -120,29 +121,45 @@ func (br *fdbBlobReader) Read(buf []byte) (int, error) {
 	return read, err
 }
 
-func (bs fdbBlobStore) BlobReader(id string) BlobReader {
-	return &fdbBlobReader{
+func (bs fdbBlobStore) BlobReader(id string) (BlobReader, error) {
+	_, err := bs.Len(id)
+
+	reader := &fdbBlobReader{
 		db:                   bs.db,
 		ns:                   bs.ns,
 		id:                   id,
 		chunkSize:            bs.chunkSize,
 		chunksPerTransaction: bs.chunksPerTransaction,
 	}
+
+	return reader, err
 }
 
 func (bs *fdbBlobStore) Read(id string) ([]byte, error) {
 	var blob bytes.Buffer
-	reader := bs.BlobReader(id)
+	reader, err := bs.BlobReader(id)
 
-	_, err := blob.ReadFrom(reader)
+	if err != nil {
+		return blob.Bytes(), err
+	}
+
+	_, err = blob.ReadFrom(reader)
 
 	return blob.Bytes(), err
 }
 
-func encodeUInt64(n uint64) []byte {
-	bs := make([]byte, 8)
-	binary.LittleEndian.PutUint64(bs, n)
-	return bs
+func (bs *fdbBlobStore) Len(id string) (uint64, error) {
+	length, err := bs.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
+		data, error := tr.Get(tuple.Tuple{bs.ns, "blobs", id, "len"}).Get()
+
+		if len(data) == 0 {
+			return uint64(0), fmt.Errorf("%w: %q", BlobNotFoundError, id)
+		}
+
+		return decodeUInt64(data), error
+	})
+
+	return length.(uint64), err
 }
 
 func (bs *fdbBlobStore) write(id string, reader io.Reader) error {
