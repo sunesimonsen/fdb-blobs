@@ -104,7 +104,7 @@ func TestRead(t *testing.T) {
 	s := setupTestStore(WithChunkSize(100))
 
 	t.Run("returns an error for a blob that doesn't exists", func(t *testing.T) {
-		_, err := s.Read("missing")
+		_, err := s.Read(idString("missing"))
 		assertError(t, err, "blob not found: \"missing\"")
 	})
 }
@@ -113,7 +113,7 @@ func TestLen(t *testing.T) {
 	s := setupTestStore(WithChunkSize(100))
 
 	t.Run("returns an error for a blob that doesn't exists", func(t *testing.T) {
-		_, err := s.Len("missing")
+		_, err := s.Len(idString("missing"))
 		assertError(t, err, "blob not found: \"missing\"")
 	})
 

@@ -11,11 +11,21 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
+type Id interface {
+	fdb.KeyConvertible
+}
+
+type idString string
+
+func (id idString) FDBKey() fdb.Key {
+	return []byte(id)
+}
+
 type BlobStore interface {
-	Read(id string) ([]byte, error)
-	Create(reader io.Reader) (string, error)
-	BlobReader(id string) (BlobReader, error)
-	Len(id string) (uint64, error)
+	Read(id Id) ([]byte, error)
+	Create(reader io.Reader) (Id, error)
+	BlobReader(id Id) (BlobReader, error)
+	Len(id Id) (uint64, error)
 }
 
 type fdbBlobStore struct {
@@ -56,7 +66,7 @@ type BlobReader interface {
 type fdbBlobReader struct {
 	db                   fdb.Database
 	ns                   string
-	id                   string
+	id                   Id
 	off                  int
 	buf                  []byte
 	chunkSize            int
@@ -121,7 +131,7 @@ func (br *fdbBlobReader) Read(buf []byte) (int, error) {
 	return read, err
 }
 
-func (bs fdbBlobStore) BlobReader(id string) (BlobReader, error) {
+func (bs fdbBlobStore) BlobReader(id Id) (BlobReader, error) {
 	_, err := bs.Len(id)
 
 	reader := &fdbBlobReader{
@@ -135,7 +145,7 @@ func (bs fdbBlobStore) BlobReader(id string) (BlobReader, error) {
 	return reader, err
 }
 
-func (bs *fdbBlobStore) Read(id string) ([]byte, error) {
+func (bs *fdbBlobStore) Read(id Id) ([]byte, error) {
 	var blob bytes.Buffer
 	reader, err := bs.BlobReader(id)
 
@@ -148,7 +158,7 @@ func (bs *fdbBlobStore) Read(id string) ([]byte, error) {
 	return blob.Bytes(), err
 }
 
-func (bs *fdbBlobStore) Len(id string) (uint64, error) {
+func (bs *fdbBlobStore) Len(id Id) (uint64, error) {
 	length, err := bs.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
 		data, error := tr.Get(tuple.Tuple{bs.ns, "blobs", id, "len"}).Get()
 
@@ -162,7 +172,7 @@ func (bs *fdbBlobStore) Len(id string) (uint64, error) {
 	return length.(uint64), err
 }
 
-func (bs *fdbBlobStore) write(id string, reader io.Reader) error {
+func (bs *fdbBlobStore) write(id Id, reader io.Reader) error {
 	chunk := make([]byte, bs.chunkSize)
 	var written uint64
 	var chunkIndex int
@@ -206,13 +216,13 @@ func (bs *fdbBlobStore) write(id string, reader io.Reader) error {
 	return err
 }
 
-func (bs *fdbBlobStore) Create(reader io.Reader) (string, error) {
-	payloadId := ulid.Make().String()
+func (bs *fdbBlobStore) Create(reader io.Reader) (Id, error) {
+	payloadId := idString(ulid.Make().String())
 
 	err := bs.write(payloadId, reader)
 
 	if err != nil {
-		return "", err
+		return idString(""), err
 	}
 
 	return payloadId, nil
