@@ -5,13 +5,12 @@ import (
 	"crypto/rand"
 	"log"
 	"os"
-	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/alecthomas/assert/v2"
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
-	"github.com/google/go-cmp/cmp"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -34,26 +33,6 @@ func setupTestStore(opts ...Option) BlobStore {
 	return NewFdbStore(db, ns, opts...)
 }
 
-func assertError(t testing.TB, got error, want string) {
-	t.Helper()
-
-	if got == nil {
-		t.Errorf("expected an error: %s", want)
-	}
-
-	if got.Error() != want {
-		t.Errorf("wanted error %v, got %v", want, got)
-	}
-}
-
-func assertNoError(t testing.TB, got error) {
-	t.Helper()
-
-	if got != nil {
-		t.Errorf("got an unexpected error: %s", got)
-	}
-}
-
 func TestCreateRead(t *testing.T) {
 	s := setupTestStore(WithChunkSize(100))
 
@@ -61,19 +40,12 @@ func TestCreateRead(t *testing.T) {
 		text := "my-blob"
 
 		id, err := s.Create(strings.NewReader(text))
-
-		assertNoError(t, err)
+		assert.NoError(t, err)
 
 		data, err := s.Read(id)
+		assert.NoError(t, err)
 
-		assertNoError(t, err)
-
-		want := text
-		got := string(data)
-
-		if !reflect.DeepEqual(want, got) {
-			t.Errorf("wanted %v, got %v", want, got)
-		}
+		assert.Equal(t, text, string(data))
 	})
 
 	t.Run("allows creating and extracting blobs of different sizes", func(t *testing.T) {
@@ -82,20 +54,15 @@ func TestCreateRead(t *testing.T) {
 		for _, length := range lengths {
 			input := make([]byte, length)
 			_, err := rand.Read(input)
-			assertNoError(t, err)
+			assert.NoError(t, err)
 
 			id, err := s.Create(bytes.NewReader(input))
-			assertNoError(t, err)
+			assert.NoError(t, err)
 
 			data, err := s.Read(id)
-			assertNoError(t, err)
+			assert.NoError(t, err)
 
-			want := input
-			got := data
-
-			if !reflect.DeepEqual(want, got) {
-				t.Errorf("wanted %v, got %v", want, got)
-			}
+			assert.Equal(t, input, data)
 		}
 	})
 }
@@ -105,7 +72,7 @@ func TestRead(t *testing.T) {
 
 	t.Run("returns an error for a blob that doesn't exists", func(t *testing.T) {
 		_, err := s.Read("missing")
-		assertError(t, err, "blob not found: \"missing\"")
+		assert.EqualError(t, err, "blob not found: \"missing\"")
 	})
 }
 
@@ -114,7 +81,7 @@ func TestLen(t *testing.T) {
 
 	t.Run("returns an error for a blob that doesn't exists", func(t *testing.T) {
 		_, err := s.Len("missing")
-		assertError(t, err, "blob not found: \"missing\"")
+		assert.EqualError(t, err, "blob not found: \"missing\"")
 	})
 
 	t.Run("returns the length of the specified blob", func(t *testing.T) {
@@ -123,18 +90,16 @@ func TestLen(t *testing.T) {
 		for _, length := range lengths {
 			input := make([]byte, length)
 			_, err := rand.Read(input)
-			assertNoError(t, err)
+			assert.NoError(t, err)
 
 			id, err := s.Create(bytes.NewReader(input))
-			assertNoError(t, err)
+			assert.NoError(t, err)
 
 			want := uint64(length)
 			got, err := s.Len(id)
-			assertNoError(t, err)
+			assert.NoError(t, err)
 
-			if want != got {
-				t.Errorf("wanted %v, got %v", want, got)
-			}
+			assert.Equal(t, want, got)
 		}
 	})
 }
@@ -148,16 +113,11 @@ func FuzzChunkSizes(f *testing.F) {
 		s := setupTestStore(WithChunkSize(chunkSize), WithChunksPerTransaction(chunksPerTransaction))
 
 		id, err := s.Create(bytes.NewReader(input))
-		assertNoError(t, err)
+		assert.NoError(t, err)
 
 		data, err := s.Read(id)
-		assertNoError(t, err)
+		assert.NoError(t, err)
 
-		want := input
-		got := data
-
-		if diff := cmp.Diff(want, got); diff != "" {
-			t.Errorf("Mismatch (-want +got):\n%s", diff)
-		}
+		assert.Equal(t, input, data)
 	})
 }
