@@ -2,9 +2,9 @@ package blobs
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
-	"math"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/apple/foundationdb/bindings/go/src/fdb/tuple"
@@ -18,8 +18,8 @@ func (id Id) FDBKey() fdb.Key {
 }
 
 type BlobStore interface {
-	Read(id Id) ([]byte, error)
-	Create(reader io.Reader) (Id, error)
+	Read(cxt context.Context, id Id) ([]byte, error)
+	Create(ctx context.Context, r io.Reader) (Id, error)
 	BlobReader(id Id) (BlobReader, error)
 	Len(id Id) (uint64, error)
 }
@@ -55,78 +55,6 @@ func NewFdbStore(db fdb.Database, ns string, opts ...Option) BlobStore {
 	return store
 }
 
-type BlobReader interface {
-	io.Reader
-}
-
-type fdbBlobReader struct {
-	db                   fdb.Database
-	ns                   string
-	id                   Id
-	off                  int
-	buf                  []byte
-	chunkSize            int
-	chunksPerTransaction int
-}
-
-func (br *fdbBlobReader) Read(buf []byte) (int, error) {
-	read := copy(buf, br.buf)
-	br.buf = br.buf[read:]
-
-	// This also take care of io.EOF
-	if len(buf) == read {
-		return read, nil
-	}
-
-	_, err := br.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
-		startChunk := br.off
-		endChunk := br.off + int(math.Ceil(float64(len(buf)-read)/float64(br.chunkSize)))
-		endChunkCap := int(math.Min(float64(startChunk+br.chunksPerTransaction), float64(endChunk))) + 1
-
-		chunkRange := fdb.KeyRange(fdb.KeyRange{
-			Begin: tuple.Tuple{br.ns, "blobs", br.id, "bytes", startChunk},
-			End:   tuple.Tuple{br.ns, "blobs", br.id, "bytes", endChunkCap},
-		})
-
-		entries, err := tr.GetRange(chunkRange, fdb.RangeOptions{}).GetSliceWithError()
-
-		if err != nil {
-			return read, err
-		}
-
-		if len(entries) == 0 {
-			// Didn't find any entries, we are done
-			return read, io.EOF
-		}
-
-		for _, v := range entries {
-			n := copy(buf[read:], v.Value)
-			br.off += 1
-			read += n
-
-			if n < len(v.Value) {
-				// No more output buffer, safe the rest for next read
-				br.buf = v.Value[n:]
-				return read, nil
-			} else if len(v.Value) < br.chunkSize {
-				// chunk is too short and we read all of it;
-				// we are now at the end
-				return read, io.EOF
-			}
-		}
-
-		if len(entries[len(entries)-1].Value) < br.chunkSize {
-			// last chunk was too short
-			// we hit the end
-			return read, io.EOF
-		}
-
-		return read, nil
-	})
-
-	return read, err
-}
-
 func (bs fdbBlobStore) BlobReader(id Id) (BlobReader, error) {
 	_, err := bs.Len(id)
 
@@ -141,17 +69,39 @@ func (bs fdbBlobStore) BlobReader(id Id) (BlobReader, error) {
 	return reader, err
 }
 
-func (bs *fdbBlobStore) Read(id Id) ([]byte, error) {
+func (bs *fdbBlobStore) Read(cxt context.Context, id Id) ([]byte, error) {
 	var blob bytes.Buffer
-	reader, err := bs.BlobReader(id)
+	var buf = make([]byte, bs.chunkSize*bs.chunksPerTransaction)
+	r, err := bs.BlobReader(id)
 
 	if err != nil {
 		return blob.Bytes(), err
 	}
 
-	_, err = blob.ReadFrom(reader)
+	for {
+		err := cxt.Err()
+		if err != nil {
+			return blob.Bytes(), err
+		}
 
-	return blob.Bytes(), err
+		n, err := r.Read(buf)
+
+		if n > 0 {
+			_, err := blob.Write(buf[:n])
+			if err != nil {
+				return blob.Bytes(), err
+			}
+		}
+
+		if err == io.EOF {
+			return blob.Bytes(), nil
+		}
+
+		if err != nil {
+			return blob.Bytes(), err
+		}
+
+	}
 }
 
 func (bs *fdbBlobStore) Len(id Id) (uint64, error) {
@@ -168,7 +118,7 @@ func (bs *fdbBlobStore) Len(id Id) (uint64, error) {
 	return length.(uint64), err
 }
 
-func (bs *fdbBlobStore) write(id Id, reader io.Reader) error {
+func (bs *fdbBlobStore) write(cxt context.Context, id Id, r io.Reader) error {
 	chunk := make([]byte, bs.chunkSize)
 	var written uint64
 	var chunkIndex int
@@ -176,7 +126,12 @@ func (bs *fdbBlobStore) write(id Id, reader io.Reader) error {
 	for {
 		finished, err := bs.db.Transact(func(tr fdb.Transaction) (any, error) {
 			for i := 0; i < bs.chunksPerTransaction; i++ {
-				n, err := io.ReadFull(reader, chunk)
+				err := cxt.Err()
+				if err != nil {
+					return false, err
+				}
+
+				n, err := io.ReadFull(r, chunk)
 
 				tr.Set(tuple.Tuple{bs.ns, "blobs", id, "bytes", chunkIndex}, chunk[0:n])
 
@@ -212,10 +167,10 @@ func (bs *fdbBlobStore) write(id Id, reader io.Reader) error {
 	return err
 }
 
-func (bs *fdbBlobStore) Create(reader io.Reader) (Id, error) {
+func (bs *fdbBlobStore) Create(cxt context.Context, r io.Reader) (Id, error) {
 	payloadId := Id(ulid.Make().String())
 
-	err := bs.write(payloadId, reader)
+	err := bs.write(cxt, payloadId, r)
 
 	if err != nil {
 		return "", err

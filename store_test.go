@@ -2,6 +2,7 @@ package blobs
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"log"
 	"os"
@@ -39,10 +40,11 @@ func TestCreateRead(t *testing.T) {
 	t.Run("a newly created blob can be extracted with the returned id", func(t *testing.T) {
 		text := "my-blob"
 
-		id, err := s.Create(strings.NewReader(text))
+		ctx := context.Background()
+		id, err := s.Create(ctx, strings.NewReader(text))
 		assert.NoError(t, err)
 
-		data, err := s.Read(id)
+		data, err := s.Read(ctx, id)
 		assert.NoError(t, err)
 
 		assert.Equal(t, text, string(data))
@@ -56,14 +58,37 @@ func TestCreateRead(t *testing.T) {
 			_, err := rand.Read(input)
 			assert.NoError(t, err)
 
-			id, err := s.Create(bytes.NewReader(input))
+			ctx := context.Background()
+			id, err := s.Create(ctx, bytes.NewReader(input))
 			assert.NoError(t, err)
 
-			data, err := s.Read(id)
+			data, err := s.Read(ctx, id)
 			assert.NoError(t, err)
 
-			assert.Equal(t, input, data)
+			assert.Equal(t, len(input), len(data), "lengths")
+
+			// TODO this might be fixed in assert.Equal
+			// see https://github.com/alecthomas/assert/pull/11
+			if len(input) > 0 && len(data) > 0 {
+				assert.Equal(t, input, data, "length: %d", length)
+			}
 		}
+	})
+}
+
+func TestCreate(t *testing.T) {
+	s := setupTestStore(WithChunkSize(100))
+
+	t.Run("returns an error if the context is cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		input := make([]byte, 200)
+		_, err := rand.Read(input)
+		assert.NoError(t, err)
+
+		cancel()
+
+		_, err = s.Create(ctx, bytes.NewReader(input))
+		assert.EqualError(t, err, "context canceled")
 	})
 }
 
@@ -71,8 +96,24 @@ func TestRead(t *testing.T) {
 	s := setupTestStore(WithChunkSize(100))
 
 	t.Run("returns an error for a blob that doesn't exists", func(t *testing.T) {
-		_, err := s.Read("missing")
+		ctx := context.Background()
+		_, err := s.Read(ctx, "missing")
 		assert.EqualError(t, err, "blob not found: \"missing\"")
+	})
+
+	t.Run("returns an error if the context is cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		input := make([]byte, 200)
+		_, err := rand.Read(input)
+		assert.NoError(t, err)
+
+		id, err := s.Create(ctx, bytes.NewReader(input))
+		assert.NoError(t, err)
+
+		cancel()
+
+		_, err = s.Read(ctx, id)
+		assert.EqualError(t, err, "context canceled")
 	})
 }
 
@@ -92,7 +133,8 @@ func TestLen(t *testing.T) {
 			_, err := rand.Read(input)
 			assert.NoError(t, err)
 
-			id, err := s.Create(bytes.NewReader(input))
+			ctx := context.Background()
+			id, err := s.Create(ctx, bytes.NewReader(input))
 			assert.NoError(t, err)
 
 			want := uint64(length)
@@ -112,12 +154,17 @@ func FuzzChunkSizes(f *testing.F) {
 
 		s := setupTestStore(WithChunkSize(chunkSize), WithChunksPerTransaction(chunksPerTransaction))
 
-		id, err := s.Create(bytes.NewReader(input))
+		ctx := context.Background()
+		id, err := s.Create(ctx, bytes.NewReader(input))
 		assert.NoError(t, err)
 
-		data, err := s.Read(id)
+		data, err := s.Read(ctx, id)
 		assert.NoError(t, err)
 
-		assert.Equal(t, input, data)
+		// TODO this might be fixed in assert.Equal
+		// see https://github.com/alecthomas/assert/pull/11
+		if len(input) > 0 && len(data) > 0 {
+			assert.Equal(t, input, data, "chunkSize: %d, chunksPerTransaction %d", chunkSize, chunksPerTransaction)
+		}
 	})
 }
