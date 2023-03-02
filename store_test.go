@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alecthomas/assert/v2"
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
@@ -143,6 +144,30 @@ func TestLen(t *testing.T) {
 
 			assert.Equal(t, want, got)
 		}
+	})
+}
+
+func TestCreatedAt(t *testing.T) {
+	s := setupTestStore(WithChunkSize(100))
+
+	t.Run("returns an error for a blob that doesn't exists", func(t *testing.T) {
+		_, err := s.CreatedAt("missing")
+		assert.EqualError(t, err, "blob not found: \"missing\"")
+	})
+
+	t.Run("returns the created time of the specified blob", func(t *testing.T) {
+		input := make([]byte, 10)
+		_, err := rand.Read(input)
+		assert.NoError(t, err)
+
+		ctx := context.Background()
+		id, err := s.Create(ctx, bytes.NewReader(input))
+		assert.NoError(t, err)
+
+		createdAt, err := s.CreatedAt(id)
+		assert.NoError(t, err)
+
+		assert.True(t, createdAt.Before(time.Now()), "CreatedAt before now")
 	})
 }
 
