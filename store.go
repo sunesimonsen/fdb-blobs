@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/apple/foundationdb/bindings/go/src/fdb/tuple"
@@ -13,15 +14,26 @@ import (
 
 type Id string
 
+func (id Id) id() Id {
+	return id
+}
+
+type UploadToken interface {
+	id() Id
+}
+
 func (id Id) FDBKey() fdb.Key {
 	return []byte(id)
 }
 
 type BlobStore interface {
 	Read(cxt context.Context, id Id) ([]byte, error)
+	Upload(ctx context.Context, r io.Reader) (UploadToken, error)
+	CommitUpload(tr fdb.Transaction, uploadToken UploadToken) Id
 	Create(ctx context.Context, r io.Reader) (Id, error)
 	BlobReader(id Id) (BlobReader, error)
 	Len(id Id) (uint64, error)
+	CreatedAt(id Id) (time.Time, error)
 }
 
 type fdbBlobStore struct {
@@ -56,7 +68,7 @@ func NewFdbStore(db fdb.Database, ns string, opts ...Option) BlobStore {
 }
 
 func (bs fdbBlobStore) BlobReader(id Id) (BlobReader, error) {
-	_, err := bs.Len(id)
+	_, err := bs.CreatedAt(id)
 
 	reader := &fdbBlobReader{
 		db:                   bs.db,
@@ -167,14 +179,64 @@ func (bs *fdbBlobStore) write(cxt context.Context, id Id, r io.Reader) error {
 	return err
 }
 
-func (bs *fdbBlobStore) Create(cxt context.Context, r io.Reader) (Id, error) {
-	payloadId := Id(ulid.Make().String())
+func (bs *fdbBlobStore) Upload(cxt context.Context, r io.Reader) (UploadToken, error) {
+	id := Id(ulid.Make().String())
 
-	err := bs.write(cxt, payloadId, r)
+	_, err := bs.db.Transact(func(tr fdb.Transaction) (any, error) {
+		unixTimestamp := time.Now().Unix()
+		tr.Set(tuple.Tuple{bs.ns, "blobs", id, "uploadStartedAt"}, encodeUInt64(uint64(unixTimestamp)))
+		return nil, nil
+	})
 
 	if err != nil {
-		return "", err
+		return id, err
 	}
 
-	return payloadId, nil
+	err = bs.write(cxt, id, r)
+
+	if err != nil {
+		return id, err
+	}
+
+	_, err = bs.db.Transact(func(tr fdb.Transaction) (any, error) {
+		unixTimestamp := time.Now().Unix()
+		tr.Set(tuple.Tuple{bs.ns, "blobs", id, "uploadEndedAt"}, encodeUInt64(uint64(unixTimestamp)))
+		return nil, nil
+	})
+
+	return id, err
+}
+
+func (bs *fdbBlobStore) CommitUpload(tr fdb.Transaction, uploadToken UploadToken) Id {
+	id := uploadToken.id()
+	unixTimestamp := time.Now().Unix()
+	tr.Set(tuple.Tuple{bs.ns, "blobs", id, "createdAt"}, encodeUInt64(uint64(unixTimestamp)))
+	return id
+}
+
+func (bs *fdbBlobStore) Create(cxt context.Context, r io.Reader) (Id, error) {
+	uploadToken, err := bs.Upload(cxt, r)
+	if err != nil {
+		return uploadToken.id(), err
+	}
+
+	_, err = bs.db.Transact(func(tr fdb.Transaction) (any, error) {
+		return bs.CommitUpload(tr, uploadToken), nil
+	})
+
+	return uploadToken.id(), err
+}
+
+func (bs *fdbBlobStore) CreatedAt(id Id) (time.Time, error) {
+	createdAt, err := bs.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
+		data, error := tr.Get(tuple.Tuple{bs.ns, "blobs", id, "createdAt"}).Get()
+
+		if len(data) == 0 {
+			return time.Now(), fmt.Errorf("%w: %q", BlobNotFoundError, id)
+		}
+
+		return time.Unix(int64(decodeUInt64(data)), 0), error
+	})
+
+	return createdAt.(time.Time), err
 }
