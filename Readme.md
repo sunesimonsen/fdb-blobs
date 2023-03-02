@@ -1,5 +1,8 @@
 # fdb-blobs
 
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/sunesimonsen/fdb-blobs)](https://pkg.go.dev/github.com/sunesimonsen/fdb-blobs) [![CI](https://github.com/sunesimonsen/fdb-blobs/actions/workflows/ci.yml/badge.svg)](https://github.com/sunesimonsen/fdb-blobs/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/sunesimonsen/fdb-blobs)](https://goreportcard.com/report/github.com/sunesimonsen/fdb-blobs) 
+
 WARNING - under construction :-)
 
 A blob store for [FoundationDB](https://www.foundationdb.org/) that handles
