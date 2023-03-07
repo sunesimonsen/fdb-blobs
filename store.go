@@ -43,28 +43,39 @@ type fdbBlobStore struct {
 	chunksPerTransaction int
 }
 
-type Option func(br *fdbBlobStore)
+type Option func(br *fdbBlobStore) error
 
-func WithChunkSize(chunkSize uint) Option {
-	return func(br *fdbBlobStore) {
-		br.chunkSize = int(chunkSize)
+func WithChunkSize(chunkSize int) Option {
+	return func(br *fdbBlobStore) error {
+		if chunkSize < 1 {
+			return fmt.Errorf("invalid chunkSize 1 > %d", chunkSize)
+		}
+		br.chunkSize = chunkSize
+		return nil
 	}
 }
 
-func WithChunksPerTransaction(chunksPerTransaction uint) Option {
-	return func(br *fdbBlobStore) {
-		br.chunksPerTransaction = int(chunksPerTransaction)
+func WithChunksPerTransaction(chunksPerTransaction int) Option {
+	return func(br *fdbBlobStore) error {
+		if chunksPerTransaction < 1 {
+			return fmt.Errorf("invalid chunksPerTransaction 1 > %d", chunksPerTransaction)
+		}
+		br.chunksPerTransaction = chunksPerTransaction
+		return nil
 	}
 }
 
-func NewFdbStore(db fdb.Database, ns string, opts ...Option) BlobStore {
+func NewFdbStore(db fdb.Database, ns string, opts ...Option) (BlobStore, error) {
 	store := &fdbBlobStore{db: db, ns: ns, chunkSize: 10000, chunksPerTransaction: 100}
 
 	for _, opt := range opts {
-		opt(store)
+		err := opt(store)
+		if err != nil {
+			return store, err
+		}
 	}
 
-	return store
+	return store, nil
 }
 
 func (bs fdbBlobStore) BlobReader(id Id) (BlobReader, error) {
