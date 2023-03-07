@@ -3,25 +3,28 @@ name: Checks
 on: [push]
 
 jobs:
- test:
+  test:
     name: Run test suite
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-    - name: Build docker images
-      run: docker compose build
+      - name: Build docker images
+        run: docker compose build
 
-    - name: Run services
-      run: docker compose up -d
+      - name: Run services
+        run: docker compose up -d
 
-    - name: Run tests
-      run: docker compose exec blobs go test -cover
+      - name: Run tests
+        run: docker compose exec blobs go test -cover
 
-    - name: Run vet
-      run: docker compose exec blobs go vet
+      - name: Run fuzz tests
+        run: docker compose exec blobs go test -fuzz FuzzChunkSizes -fuzztime=60s
 
-    - name: Stop services
-      run: docker compose down
+      - name: Run vet
+        run: docker compose exec blobs go vet
+
+      - name: Stop services
+        run: docker compose down
