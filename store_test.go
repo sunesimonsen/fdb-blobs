@@ -72,13 +72,7 @@ func TestCreateRead(t *testing.T) {
 			data, err := s.Read(ctx, id)
 			assert.NoError(t, err)
 
-			assert.Equal(t, len(input), len(data), "lengths")
-
-			// TODO this might be fixed in assert.Equal
-			// see https://github.com/alecthomas/assert/pull/11
-			if len(input) > 0 && len(data) > 0 {
-				assert.Equal(t, input, data, "length: %d", length)
-			}
+			assert.Equal(t, input, data, "length: %d", length)
 		}
 	})
 }
@@ -192,10 +186,6 @@ func FuzzChunkSizes(f *testing.F) {
 		data, err := s.Read(ctx, id)
 		assert.NoError(t, err)
 
-		// TODO this might be fixed in assert.Equal
-		// see https://github.com/alecthomas/assert/pull/11
-		if len(input) > 0 && len(data) > 0 {
-			assert.Equal(t, input, data, "chunkSize: %d, chunksPerTransaction %d", chunkSize, chunksPerTransaction)
-		}
+		assert.Equal(t, input, data, "chunkSize: %d, chunksPerTransaction %d", chunkSize, chunksPerTransaction)
 	})
 }
