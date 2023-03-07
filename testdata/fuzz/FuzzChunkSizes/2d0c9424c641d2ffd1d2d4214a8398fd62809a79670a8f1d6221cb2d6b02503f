@@ -1,4 +1,4 @@
 go test fuzz v1
-uint(48)
-uint(1)
+int(48)
+int(1)
 []byte("0")

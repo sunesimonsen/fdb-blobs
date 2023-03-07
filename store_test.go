@@ -32,7 +32,13 @@ func fdbConnect() fdb.Database {
 func setupTestStore(opts ...Option) BlobStore {
 	db := fdbConnect()
 	ns := "test-" + ulid.Make().String()
-	return NewFdbStore(db, ns, opts...)
+	store, err := NewFdbStore(db, ns, opts...)
+
+	if err != nil {
+		log.Fatalf("Can't create blob store %v", err)
+	}
+
+	return store
 }
 
 func TestCreateRead(t *testing.T) {
@@ -172,8 +178,8 @@ func TestCreatedAt(t *testing.T) {
 }
 
 func FuzzChunkSizes(f *testing.F) {
-	f.Fuzz(func(t *testing.T, chunkSize uint, chunksPerTransaction uint, input []byte) {
-		if chunkSize == 0 || chunksPerTransaction == 0 {
+	f.Fuzz(func(t *testing.T, chunkSize int, chunksPerTransaction int, input []byte) {
+		if chunkSize <= 0 || chunksPerTransaction <= 0 {
 			t.Skip()
 		}
 
