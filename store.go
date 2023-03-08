@@ -1,7 +1,6 @@
 package blobs
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -27,13 +26,10 @@ func (id Id) FDBKey() fdb.Key {
 }
 
 type BlobStore interface {
-	Read(cxt context.Context, id Id) ([]byte, error)
 	Upload(ctx context.Context, r io.Reader) (UploadToken, error)
 	CommitUpload(tr fdb.Transaction, uploadToken UploadToken) (Id, error)
-	Create(ctx context.Context, r io.Reader) (Id, error)
-	BlobReader(id Id) (BlobReader, error)
-	Len(id Id) (int, error)
-	CreatedAt(id Id) (time.Time, error)
+	Create(ctx context.Context, r io.Reader) (Blob, error)
+	Blob(id Id) (Blob, error)
 }
 
 type fdbBlobStore struct {
@@ -97,69 +93,22 @@ func (bs *fdbBlobStore) openBlobDir(id Id) (directory.DirectorySubspace, error) 
 	return blobDir, nil
 }
 
-func (bs fdbBlobStore) BlobReader(id Id) (BlobReader, error) {
-	_, err := bs.CreatedAt(id)
+func (bs *fdbBlobStore) Blob(id Id) (Blob, error) {
 	blobDir, err := bs.openBlobDir(id)
 
-	reader := &fdbBlobReader{
+	if err != nil {
+		return nil, err
+	}
+
+	blob := &fdbBlob{
 		db:                   bs.db,
+		id:                   id,
 		dir:                  blobDir,
 		chunkSize:            bs.chunkSize,
 		chunksPerTransaction: bs.chunksPerTransaction,
 	}
 
-	return reader, err
-}
-
-func (bs *fdbBlobStore) Read(cxt context.Context, id Id) ([]byte, error) {
-	var blob bytes.Buffer
-	var buf = make([]byte, bs.chunkSize*bs.chunksPerTransaction)
-	r, err := bs.BlobReader(id)
-
-	if err != nil {
-		return blob.Bytes(), err
-	}
-
-	for {
-		err := cxt.Err()
-		if err != nil {
-			return blob.Bytes(), err
-		}
-
-		n, err := r.Read(buf)
-
-		if n > 0 {
-			_, err := blob.Write(buf[:n])
-			if err != nil {
-				return blob.Bytes(), err
-			}
-		}
-
-		if err == io.EOF {
-			return blob.Bytes(), nil
-		}
-
-		if err != nil {
-			return blob.Bytes(), err
-		}
-
-	}
-}
-
-func (bs *fdbBlobStore) Len(id Id) (int, error) {
-	length, err := bs.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
-		blobDir, err := bs.openBlobDir(id)
-
-		if err != nil {
-			return 0, err
-		}
-
-		data, error := tr.Get(blobDir.Sub("len")).Get()
-
-		return int(decodeUInt64(data)), error
-	})
-
-	return length.(int), err
+	return blob, err
 }
 
 func (bs *fdbBlobStore) write(cxt context.Context, id Id, r io.Reader) error {
@@ -265,35 +214,19 @@ func (bs *fdbBlobStore) CommitUpload(tr fdb.Transaction, uploadToken UploadToken
 	return id, nil
 }
 
-func (bs *fdbBlobStore) Create(cxt context.Context, r io.Reader) (Id, error) {
+func (bs *fdbBlobStore) Create(cxt context.Context, r io.Reader) (Blob, error) {
 	uploadToken, err := bs.Upload(cxt, r)
 	if err != nil {
-		return uploadToken.id(), err
+		return nil, err
 	}
 
 	_, err = bs.db.Transact(func(tr fdb.Transaction) (any, error) {
 		return bs.CommitUpload(tr, uploadToken)
 	})
 
-	return uploadToken.id(), err
-}
-
-func (bs *fdbBlobStore) CreatedAt(id Id) (time.Time, error) {
-	blobDir, err := bs.openBlobDir(id)
-
 	if err != nil {
-		return time.Now(), err
+		return nil, err
 	}
 
-	createdAt, err := bs.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
-		data, error := tr.Get(blobDir.Sub("createdAt")).Get()
-
-		if len(data) == 0 {
-			return time.Now(), fmt.Errorf("%w: %q", BlobNotFoundError, id)
-		}
-
-		return time.Unix(int64(decodeUInt64(data)), 0), error
-	})
-
-	return createdAt.(time.Time), err
+	return bs.Blob(uploadToken.id())
 }

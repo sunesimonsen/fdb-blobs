@@ -48,10 +48,10 @@ func TestCreateRead(t *testing.T) {
 		text := "my-blob"
 
 		ctx := context.Background()
-		id, err := s.Create(ctx, strings.NewReader(text))
+		blob, err := s.Create(ctx, strings.NewReader(text))
 		assert.NoError(t, err)
 
-		data, err := s.Read(ctx, id)
+		data, err := blob.Content(ctx)
 		assert.NoError(t, err)
 
 		assert.Equal(t, text, string(data))
@@ -66,10 +66,10 @@ func TestCreateRead(t *testing.T) {
 			assert.NoError(t, err)
 
 			ctx := context.Background()
-			id, err := s.Create(ctx, bytes.NewReader(input))
+			blob, err := s.Create(ctx, bytes.NewReader(input))
 			assert.NoError(t, err)
 
-			data, err := s.Read(ctx, id)
+			data, err := blob.Content(ctx)
 			assert.NoError(t, err)
 
 			assert.Equal(t, input, data, "length: %d", length)
@@ -79,6 +79,20 @@ func TestCreateRead(t *testing.T) {
 
 func TestCreate(t *testing.T) {
 	s := setupTestStore(WithChunkSize(100))
+
+	t.Run("returns a blob with the correct content", func(t *testing.T) {
+		ctx := context.Background()
+
+		blob, err := s.Create(ctx, strings.NewReader("Hello"))
+		assert.NoError(t, err)
+
+		assert.True(t, 0 < len(blob.Id()))
+
+		content, err := blob.Content(ctx)
+		assert.NoError(t, err)
+
+		assert.Equal(t, "Hello", string(content))
+	})
 
 	t.Run("returns an error if the context is cancelled", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -93,13 +107,29 @@ func TestCreate(t *testing.T) {
 	})
 }
 
-func TestRead(t *testing.T) {
+func TestBlob(t *testing.T) {
 	s := setupTestStore(WithChunkSize(100))
 
 	t.Run("returns an error for a blob that doesn't exists", func(t *testing.T) {
-		ctx := context.Background()
-		_, err := s.Read(ctx, "missing")
+		_, err := s.Blob("missing")
 		assert.EqualError(t, err, "blob not found: \"missing\"")
+	})
+}
+
+func TestRead(t *testing.T) {
+	s := setupTestStore(WithChunkSize(100))
+
+	t.Run("returns an error for a blob that is not fully uploaded", func(t *testing.T) {
+		ctx := context.Background()
+
+		uploadToken, err := s.Upload(ctx, strings.NewReader("Hello"))
+		assert.NoError(t, err)
+
+		blob, err := s.Blob(uploadToken.id())
+		assert.NoError(t, err)
+
+		_, err = blob.CreatedAt()
+		assert.EqualError(t, err, "blob not found: \""+string(uploadToken.id())+"\"")
 	})
 
 	t.Run("returns an error if the context is cancelled", func(t *testing.T) {
@@ -108,23 +138,18 @@ func TestRead(t *testing.T) {
 		_, err := rand.Read(input)
 		assert.NoError(t, err)
 
-		id, err := s.Create(ctx, bytes.NewReader(input))
+		blob, err := s.Create(ctx, bytes.NewReader(input))
 		assert.NoError(t, err)
 
 		cancel()
 
-		_, err = s.Read(ctx, id)
+		_, err = blob.Content(ctx)
 		assert.EqualError(t, err, "context canceled")
 	})
 }
 
 func TestLen(t *testing.T) {
 	s := setupTestStore(WithChunkSize(100))
-
-	t.Run("returns an error for a blob that doesn't exists", func(t *testing.T) {
-		_, err := s.Len("missing")
-		assert.EqualError(t, err, "blob not found: \"missing\"")
-	})
 
 	t.Run("returns the length of the specified blob", func(t *testing.T) {
 		lengths := []int{0, 10, 100, 101, 2000}
@@ -135,11 +160,11 @@ func TestLen(t *testing.T) {
 			assert.NoError(t, err)
 
 			ctx := context.Background()
-			id, err := s.Create(ctx, bytes.NewReader(input))
+			blob, err := s.Create(ctx, bytes.NewReader(input))
 			assert.NoError(t, err)
 
 			want := length
-			got, err := s.Len(id)
+			got, err := blob.Len()
 			assert.NoError(t, err)
 
 			assert.Equal(t, want, got)
@@ -150,21 +175,16 @@ func TestLen(t *testing.T) {
 func TestCreatedAt(t *testing.T) {
 	s := setupTestStore(WithChunkSize(100))
 
-	t.Run("returns an error for a blob that doesn't exists", func(t *testing.T) {
-		_, err := s.CreatedAt("missing")
-		assert.EqualError(t, err, "blob not found: \"missing\"")
-	})
-
 	t.Run("returns the created time of the specified blob", func(t *testing.T) {
 		input := make([]byte, 10)
 		_, err := rand.Read(input)
 		assert.NoError(t, err)
 
 		ctx := context.Background()
-		id, err := s.Create(ctx, bytes.NewReader(input))
+		blob, err := s.Create(ctx, bytes.NewReader(input))
 		assert.NoError(t, err)
 
-		createdAt, err := s.CreatedAt(id)
+		createdAt, err := blob.CreatedAt()
 		assert.NoError(t, err)
 
 		assert.True(t, createdAt.Before(time.Now()), "CreatedAt before now")
@@ -180,10 +200,10 @@ func FuzzChunkSizes(f *testing.F) {
 		s := setupTestStore(WithChunkSize(chunkSize), WithChunksPerTransaction(chunksPerTransaction))
 
 		ctx := context.Background()
-		id, err := s.Create(ctx, bytes.NewReader(input))
+		blob, err := s.Create(ctx, bytes.NewReader(input))
 		assert.NoError(t, err)
 
-		data, err := s.Read(ctx, id)
+		data, err := blob.Content(ctx)
 		assert.NoError(t, err)
 
 		assert.Equal(t, input, data, "chunkSize: %d, chunksPerTransaction %d", chunkSize, chunksPerTransaction)
