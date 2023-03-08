@@ -1,0 +1,4 @@
+go test fuzz v1
+int(42)
+int(64)
+[]byte("04\x83 T")
