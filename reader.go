@@ -5,7 +5,7 @@ import (
 	"math"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
-	"github.com/apple/foundationdb/bindings/go/src/fdb/tuple"
+	"github.com/apple/foundationdb/bindings/go/src/fdb/directory"
 )
 
 type BlobReader interface {
@@ -14,8 +14,7 @@ type BlobReader interface {
 
 type fdbBlobReader struct {
 	db                   fdb.Database
-	ns                   string
-	id                   Id
+	dir                  directory.DirectorySubspace
 	off                  int
 	buf                  []byte
 	chunkSize            int
@@ -37,8 +36,8 @@ func (br *fdbBlobReader) Read(buf []byte) (int, error) {
 		endChunkCap := int(math.Min(float64(startChunk+br.chunksPerTransaction), float64(endChunk))) + 1
 
 		chunkRange := fdb.KeyRange(fdb.KeyRange{
-			Begin: tuple.Tuple{br.ns, "blobs", br.id, "bytes", startChunk},
-			End:   tuple.Tuple{br.ns, "blobs", br.id, "bytes", endChunkCap},
+			Begin: br.dir.Sub("bytes", startChunk),
+			End:   br.dir.Sub("bytes", endChunkCap),
 		})
 
 		entries, err := tr.GetRange(chunkRange, fdb.RangeOptions{}).GetSliceWithError()
