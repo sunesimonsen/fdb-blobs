@@ -138,7 +138,7 @@ func TestLen(t *testing.T) {
 			id, err := s.Create(ctx, bytes.NewReader(input))
 			assert.NoError(t, err)
 
-			want := uint64(length)
+			want := length
 			got, err := s.Len(id)
 			assert.NoError(t, err)
 
