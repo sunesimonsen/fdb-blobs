@@ -1,6 +1,6 @@
 module github.com/sunesimonsen/fdb-blobs
 
-go 1.19
+go 1.20
 
 require (
 	github.com/alecthomas/assert/v2 v2.2.2

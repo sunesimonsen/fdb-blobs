@@ -2,7 +2,7 @@
 # see https://github.com/moby/moby/issues/34129
 ARG FDB_VERSION
 FROM foundationdb/foundationdb:${FDB_VERSION} as fdb
-FROM golang:1.19.4-buster
+FROM golang:1.20.2-buster
 ARG FDB_VERSION
 
 WORKDIR /tmp
