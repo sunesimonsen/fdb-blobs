@@ -32,7 +32,7 @@ type BlobStore interface {
 	CommitUpload(tr fdb.Transaction, uploadToken UploadToken) Id
 	Create(ctx context.Context, r io.Reader) (Id, error)
 	BlobReader(id Id) (BlobReader, error)
-	Len(id Id) (uint64, error)
+	Len(id Id) (int, error)
 	CreatedAt(id Id) (time.Time, error)
 }
 
@@ -127,18 +127,18 @@ func (bs *fdbBlobStore) Read(cxt context.Context, id Id) ([]byte, error) {
 	}
 }
 
-func (bs *fdbBlobStore) Len(id Id) (uint64, error) {
+func (bs *fdbBlobStore) Len(id Id) (int, error) {
 	length, err := bs.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
 		data, error := tr.Get(tuple.Tuple{bs.ns, "blobs", id, "len"}).Get()
 
 		if len(data) == 0 {
-			return uint64(0), fmt.Errorf("%w: %q", BlobNotFoundError, id)
+			return 0, fmt.Errorf("%w: %q", BlobNotFoundError, id)
 		}
 
-		return decodeUInt64(data), error
+		return int(decodeUInt64(data)), error
 	})
 
-	return length.(uint64), err
+	return length.(int), err
 }
 
 func (bs *fdbBlobStore) write(cxt context.Context, id Id, r io.Reader) error {
