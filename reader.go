@@ -30,14 +30,16 @@ func (br *fdbBlobReader) Read(buf []byte) (int, error) {
 		return read, nil
 	}
 
+	bytesSpace := br.dir.Sub("bytes")
+
 	_, err := br.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
 		startChunk := br.off
 		endChunk := br.off + int(math.Ceil(float64(len(buf)-read)/float64(br.chunkSize)))
 		endChunkCap := int(math.Min(float64(startChunk+br.chunksPerTransaction), float64(endChunk))) + 1
 
 		chunkRange := fdb.KeyRange(fdb.KeyRange{
-			Begin: br.dir.Sub("bytes", startChunk),
-			End:   br.dir.Sub("bytes", endChunkCap),
+			Begin: bytesSpace.Sub(startChunk),
+			End:   bytesSpace.Sub(endChunkCap),
 		})
 
 		entries, err := tr.GetRange(chunkRange, fdb.RangeOptions{}).GetSliceWithError()
