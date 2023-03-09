@@ -102,7 +102,6 @@ func (bs *fdbBlobStore) Blob(id Id) (Blob, error) {
 
 	blob := &fdbBlob{
 		db:                   bs.db,
-		id:                   id,
 		dir:                  blobDir,
 		chunkSize:            bs.chunkSize,
 		chunksPerTransaction: bs.chunksPerTransaction,
