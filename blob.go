@@ -21,14 +21,15 @@ type Blob interface {
 
 type fdbBlob struct {
 	db                   fdb.Database
-	id                   Id
 	dir                  directory.DirectorySubspace
 	chunkSize            int
 	chunksPerTransaction int
 }
 
 func (b *fdbBlob) Id() Id {
-	return b.id
+	path := b.dir.GetPath()
+	id := path[len(path)-1]
+	return Id(id)
 }
 
 func (b *fdbBlob) Len() (int, error) {
@@ -46,7 +47,7 @@ func (b *fdbBlob) CreatedAt() (time.Time, error) {
 		data, error := tr.Get(b.dir.Sub("createdAt")).Get()
 
 		if len(data) == 0 {
-			return time.Now(), fmt.Errorf("%w: %q", BlobNotFoundError, b.id)
+			return time.Now(), fmt.Errorf("%w: %q", BlobNotFoundError, b.Id())
 		}
 
 		return time.Unix(int64(decodeUInt64(data)), 0), error
