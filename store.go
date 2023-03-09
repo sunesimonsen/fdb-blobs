@@ -120,6 +120,8 @@ func (bs *fdbBlobStore) write(cxt context.Context, id Id, r io.Reader) error {
 		return err
 	}
 
+	bytesSpace := blobDir.Sub("bytes")
+
 	for {
 		finished, err := bs.db.Transact(func(tr fdb.Transaction) (any, error) {
 			for i := 0; i < bs.chunksPerTransaction; i++ {
@@ -130,7 +132,7 @@ func (bs *fdbBlobStore) write(cxt context.Context, id Id, r io.Reader) error {
 
 				n, err := io.ReadFull(r, chunk)
 
-				tr.Set(blobDir.Sub("bytes", chunkIndex), chunk[0:n])
+				tr.Set(bytesSpace.Sub(chunkIndex), chunk[0:n])
 
 				chunkIndex++
 				written += uint64(n)
