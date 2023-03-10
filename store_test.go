@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -123,7 +124,8 @@ func TestBlob(t *testing.T) {
 		uploadPath := uploadToken.sub().GetPath()
 		id := Id(uploadPath[len(uploadPath)-1])
 		_, err = s.Blob(id)
-		assert.EqualError(t, err, "blob not found: \""+string(id)+"\"")
+		errorMessage := fmt.Sprintf("blob not found: %q", id)
+		assert.EqualError(t, err, errorMessage)
 	})
 }
 

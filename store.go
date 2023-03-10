@@ -37,12 +37,15 @@ type BlobStore interface {
 	CommitUpload(tr fdb.Transaction, uploadToken UploadToken) (Id, error)
 	Create(ctx context.Context, r io.Reader) (Blob, error)
 	Blob(id Id) (Blob, error)
+	RemoveBlob(id Id) error
 	DeleteUploadsStartedBefore(date time.Time) ([]Id, error)
+	DeleteRemovedBlobsBefore(date time.Time) ([]Id, error)
 }
 
 type fdbBlobStore struct {
 	db                   fdb.Database
 	blobsDir             directory.DirectorySubspace
+	removedDir           directory.DirectorySubspace
 	uploadsDir           directory.DirectorySubspace
 	chunkSize            int
 	chunksPerTransaction int
@@ -82,6 +85,7 @@ func NewFdbStore(db fdb.Database, ns string, opts ...Option) (BlobStore, error) 
 	dir, err := directory.CreateOrOpen(db, []string{"fdb-blobs", ns}, nil)
 	blobsDir, err := dir.CreateOrOpen(db, []string{"blobs"}, nil)
 	uploadsDir, err := dir.CreateOrOpen(db, []string{"uploads"}, nil)
+	removedDir, err := dir.CreateOrOpen(db, []string{"removed"}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -90,6 +94,7 @@ func NewFdbStore(db fdb.Database, ns string, opts ...Option) (BlobStore, error) 
 		db:                   db,
 		blobsDir:             blobsDir,
 		uploadsDir:           uploadsDir,
+		removedDir:           removedDir,
 		chunkSize:            10000,
 		chunksPerTransaction: 100,
 		systemTime:           realClock{},
@@ -132,8 +137,8 @@ func (bs *fdbBlobStore) Blob(id Id) (Blob, error) {
 	return blob, err
 }
 
-func (bs *fdbBlobStore) Create(cxt context.Context, r io.Reader) (Blob, error) {
-	uploadToken, err := bs.Upload(cxt, r)
+func (bs *fdbBlobStore) Create(ctx context.Context, r io.Reader) (Blob, error) {
+	uploadToken, err := bs.Upload(ctx, r)
 	if err != nil {
 		return nil, err
 	}
