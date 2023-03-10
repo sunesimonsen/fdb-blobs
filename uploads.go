@@ -105,8 +105,8 @@ func (bs *fdbBlobStore) CommitUpload(tr fdb.Transaction, uploadToken UploadToken
 	return Id(id), nil
 }
 
-func (bs *fdbBlobStore) RemoveUploadsStartedBefore(date time.Time) ([]Id, error) {
-	var removedIds []Id
+func (bs *fdbBlobStore) DeleteUploadsStartedBefore(date time.Time) ([]Id, error) {
+	var deletedIds []Id
 	_, err := bs.db.Transact(func(tr fdb.Transaction) (any, error) {
 		ids, err := bs.uploadsDir.List(tr, []string{})
 
@@ -130,13 +130,13 @@ func (bs *fdbBlobStore) RemoveUploadsStartedBefore(date time.Time) ([]Id, error)
 			createdAt := time.Unix(int64(decodeUInt64(data)), 0)
 
 			if createdAt.Before(date) {
-				removed, err := bs.uploadsDir.Remove(tr, []string{id})
+				deleted, err := bs.uploadsDir.Remove(tr, []string{id})
 				if err != nil {
 					return nil, err
 				}
 
-				if removed {
-					removedIds = append(removedIds, Id(id))
+				if deleted {
+					deletedIds = append(deletedIds, Id(id))
 				}
 			}
 		}
@@ -144,5 +144,5 @@ func (bs *fdbBlobStore) RemoveUploadsStartedBefore(date time.Time) ([]Id, error)
 		return nil, nil
 	})
 
-	return removedIds, err
+	return deletedIds, err
 }
