@@ -51,7 +51,7 @@ func (c *systemTimeMock) Now() time.Time {
 	return c.now
 }
 
-func TestRemoveUploadsStartedBefore(t *testing.T) {
+func TestDeleteUploadsStartedBefore(t *testing.T) {
 	date, _ := time.Parse(time.RFC3339, "2023-01-01T00:00:00Z")
 
 	st := &systemTimeMock{}
@@ -76,9 +76,9 @@ func TestRemoveUploadsStartedBefore(t *testing.T) {
 			assert.NoError(t, err)
 		}
 
-		removed, err := s.RemoveUploadsStartedBefore(date.AddDate(0, -1, 0))
+		deleted, err := s.DeleteUploadsStartedBefore(date.AddDate(0, -1, 0))
 		assert.NoError(t, err)
 
-		assert.Equal(t, 5, len(removed), "Pending upload that was removed")
+		assert.Equal(t, 5, len(deleted), "Pending upload that was deleted")
 	})
 }

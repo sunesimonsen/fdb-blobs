@@ -37,7 +37,7 @@ type BlobStore interface {
 	CommitUpload(tr fdb.Transaction, uploadToken UploadToken) (Id, error)
 	Create(ctx context.Context, r io.Reader) (Blob, error)
 	Blob(id Id) (Blob, error)
-	RemoveUploadsStartedBefore(date time.Time) ([]Id, error)
+	DeleteUploadsStartedBefore(date time.Time) ([]Id, error)
 }
 
 type fdbBlobStore struct {
