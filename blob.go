@@ -15,7 +15,7 @@ type Blob interface {
 	Len() (int, error)
 	CreatedAt() (time.Time, error)
 	Reader() (BlobReader, error)
-	Content(cxt context.Context) ([]byte, error)
+	Content(ctx context.Context) ([]byte, error)
 }
 
 type fdbBlob struct {
@@ -64,7 +64,7 @@ func (b *fdbBlob) Reader() (BlobReader, error) {
 	return reader, err
 }
 
-func (b *fdbBlob) Content(cxt context.Context) ([]byte, error) {
+func (b *fdbBlob) Content(ctx context.Context) ([]byte, error) {
 	var blob bytes.Buffer
 	var buf = make([]byte, b.chunkSize*b.chunksPerTransaction)
 	r, err := b.Reader()
@@ -74,7 +74,7 @@ func (b *fdbBlob) Content(cxt context.Context) ([]byte, error) {
 	}
 
 	for {
-		err := cxt.Err()
+		err := ctx.Err()
 		if err != nil {
 			return blob.Bytes(), err
 		}
