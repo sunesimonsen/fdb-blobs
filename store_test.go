@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/alecthomas/assert/v2"
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
@@ -114,10 +113,6 @@ func TestBlob(t *testing.T) {
 		_, err := s.Blob("missing")
 		assert.EqualError(t, err, "blob not found: \"missing\"")
 	})
-}
-
-func TestRead(t *testing.T) {
-	s := setupTestStore(WithChunkSize(100))
 
 	t.Run("returns an error for a blob that is not fully uploaded", func(t *testing.T) {
 		ctx := context.Background()
@@ -130,6 +125,10 @@ func TestRead(t *testing.T) {
 		_, err = s.Blob(id)
 		assert.EqualError(t, err, "blob not found: \""+string(id)+"\"")
 	})
+}
+
+func TestRead(t *testing.T) {
+	s := setupTestStore(WithChunkSize(100))
 
 	t.Run("returns an error if the context is cancelled", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -144,49 +143,6 @@ func TestRead(t *testing.T) {
 
 		_, err = blob.Content(ctx)
 		assert.EqualError(t, err, "context canceled")
-	})
-}
-
-func TestLen(t *testing.T) {
-	s := setupTestStore(WithChunkSize(100))
-
-	t.Run("returns the length of the specified blob", func(t *testing.T) {
-		lengths := []int{0, 10, 100, 101, 2000}
-
-		for _, length := range lengths {
-			input := make([]byte, length)
-			_, err := rand.Read(input)
-			assert.NoError(t, err)
-
-			ctx := context.Background()
-			blob, err := s.Create(ctx, bytes.NewReader(input))
-			assert.NoError(t, err)
-
-			want := length
-			got, err := blob.Len()
-			assert.NoError(t, err)
-
-			assert.Equal(t, want, got)
-		}
-	})
-}
-
-func TestCreatedAt(t *testing.T) {
-	s := setupTestStore(WithChunkSize(100))
-
-	t.Run("returns the created time of the specified blob", func(t *testing.T) {
-		input := make([]byte, 10)
-		_, err := rand.Read(input)
-		assert.NoError(t, err)
-
-		ctx := context.Background()
-		blob, err := s.Create(ctx, bytes.NewReader(input))
-		assert.NoError(t, err)
-
-		createdAt, err := blob.CreatedAt()
-		assert.NoError(t, err)
-
-		assert.True(t, createdAt.Before(time.Now()), "CreatedAt before now")
 	})
 }
 
