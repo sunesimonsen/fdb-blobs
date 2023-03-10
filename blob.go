@@ -3,7 +3,6 @@ package blobs
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"time"
 
@@ -45,10 +44,6 @@ func (b *fdbBlob) Len() (int, error) {
 func (b *fdbBlob) CreatedAt() (time.Time, error) {
 	createdAt, err := b.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
 		data, error := tr.Get(b.dir.Sub("createdAt")).Get()
-
-		if len(data) == 0 {
-			return time.Now(), fmt.Errorf("%w: %q", BlobNotFoundError, b.Id())
-		}
 
 		return time.Unix(int64(decodeUInt64(data)), 0), error
 	})

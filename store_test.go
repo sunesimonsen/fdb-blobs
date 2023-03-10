@@ -125,11 +125,10 @@ func TestRead(t *testing.T) {
 		uploadToken, err := s.Upload(ctx, strings.NewReader("Hello"))
 		assert.NoError(t, err)
 
-		blob, err := s.Blob(uploadToken.id())
-		assert.NoError(t, err)
-
-		_, err = blob.CreatedAt()
-		assert.EqualError(t, err, "blob not found: \""+string(uploadToken.id())+"\"")
+		uploadPath := uploadToken.sub().GetPath()
+		id := Id(uploadPath[len(uploadPath)-1])
+		_, err = s.Blob(id)
+		assert.EqualError(t, err, "blob not found: \""+string(id)+"\"")
 	})
 
 	t.Run("returns an error if the context is cancelled", func(t *testing.T) {

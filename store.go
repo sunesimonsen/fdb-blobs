@@ -8,6 +8,7 @@ import (
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/apple/foundationdb/bindings/go/src/fdb/directory"
+	"github.com/apple/foundationdb/bindings/go/src/fdb/subspace"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -18,7 +19,15 @@ func (id Id) id() Id {
 }
 
 type UploadToken interface {
-	id() Id
+	sub() directory.DirectorySubspace
+}
+
+type uploadToken struct {
+	dir directory.DirectorySubspace
+}
+
+func (u uploadToken) sub() directory.DirectorySubspace {
+	return u.dir
 }
 
 func (id Id) FDBKey() fdb.Key {
@@ -34,7 +43,8 @@ type BlobStore interface {
 
 type fdbBlobStore struct {
 	db                   fdb.Database
-	dir                  directory.DirectorySubspace
+	blobsDir             directory.DirectorySubspace
+	uploadsDir           directory.DirectorySubspace
 	chunkSize            int
 	chunksPerTransaction int
 }
@@ -62,12 +72,20 @@ func WithChunksPerTransaction(chunksPerTransaction int) Option {
 }
 
 func NewFdbStore(db fdb.Database, ns string, opts ...Option) (BlobStore, error) {
-	dir, err := directory.CreateOrOpen(db, []string{"blobs", ns}, nil)
+	dir, err := directory.CreateOrOpen(db, []string{"fdb-blobs", ns}, nil)
+	blobsDir, err := dir.CreateOrOpen(db, []string{"blobs"}, nil)
+	uploadsDir, err := dir.CreateOrOpen(db, []string{"uploads"}, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	store := &fdbBlobStore{db: db, dir: dir, chunkSize: 10000, chunksPerTransaction: 100}
+	store := &fdbBlobStore{
+		db:                   db,
+		blobsDir:             blobsDir,
+		uploadsDir:           uploadsDir,
+		chunkSize:            10000,
+		chunksPerTransaction: 100,
+	}
 
 	for _, opt := range opts {
 		err := opt(store)
@@ -79,12 +97,8 @@ func NewFdbStore(db fdb.Database, ns string, opts ...Option) (BlobStore, error) 
 	return store, nil
 }
 
-func (bs *fdbBlobStore) createBlobDir(id Id) (directory.DirectorySubspace, error) {
-	return bs.dir.Create(bs.db, []string{string(id)}, nil)
-}
-
 func (bs *fdbBlobStore) openBlobDir(id Id) (directory.DirectorySubspace, error) {
-	blobDir, err := bs.dir.Open(bs.db, []string{string(id)}, nil)
+	blobDir, err := bs.blobsDir.Open(bs.db, []string{string(id)}, nil)
 
 	if err != nil {
 		return blobDir, fmt.Errorf("%w: %q", BlobNotFoundError, id)
@@ -110,15 +124,10 @@ func (bs *fdbBlobStore) Blob(id Id) (Blob, error) {
 	return blob, err
 }
 
-func (bs *fdbBlobStore) write(cxt context.Context, id Id, r io.Reader) error {
+func (bs *fdbBlobStore) write(cxt context.Context, blobDir subspace.Subspace, r io.Reader) error {
 	chunk := make([]byte, bs.chunkSize)
 	var written uint64
 	var chunkIndex int
-
-	blobDir, err := bs.openBlobDir(id)
-	if err != nil {
-		return err
-	}
 
 	bytesSpace := blobDir.Sub("bytes")
 
@@ -158,7 +167,7 @@ func (bs *fdbBlobStore) write(cxt context.Context, id Id, r io.Reader) error {
 		}
 	}
 
-	_, err = bs.db.Transact(func(tr fdb.Transaction) (any, error) {
+	_, err := bs.db.Transact(func(tr fdb.Transaction) (any, error) {
 		tr.Set(blobDir.Sub("len"), encodeUInt64(written))
 		return nil, nil
 	})
@@ -169,50 +178,45 @@ func (bs *fdbBlobStore) write(cxt context.Context, id Id, r io.Reader) error {
 func (bs *fdbBlobStore) Upload(cxt context.Context, r io.Reader) (UploadToken, error) {
 	id := Id(ulid.Make().String())
 
-	blobDir, err := bs.createBlobDir(id)
+	uploadDir, err := bs.uploadsDir.Create(bs.db, []string{string(id)}, nil)
+
+	token := uploadToken{dir: uploadDir}
 
 	if err != nil {
-		return id, err
+		return token, err
 	}
 
 	_, err = bs.db.Transact(func(tr fdb.Transaction) (any, error) {
 		unixTimestamp := time.Now().Unix()
-		tr.Set(blobDir.Sub("uploadStartedAt"), encodeUInt64(uint64(unixTimestamp)))
+		tr.Set(uploadDir.Sub("uploadStartedAt"), encodeUInt64(uint64(unixTimestamp)))
 		return nil, nil
 	})
 
 	if err != nil {
-		return id, err
+		return token, err
 	}
 
-	err = bs.write(cxt, id, r)
+	err = bs.write(cxt, uploadDir, r)
 
-	if err != nil {
-		return id, err
-	}
-
-	_, err = bs.db.Transact(func(tr fdb.Transaction) (any, error) {
-		unixTimestamp := time.Now().Unix()
-		tr.Set(blobDir.Sub("uploadEndedAt"), encodeUInt64(uint64(unixTimestamp)))
-		return nil, nil
-	})
-
-	return id, err
+	return token, err
 }
 
 func (bs *fdbBlobStore) CommitUpload(tr fdb.Transaction, uploadToken UploadToken) (Id, error) {
-	id := uploadToken.id()
-	unixTimestamp := time.Now().Unix()
+	uploadDir := uploadToken.sub()
+	uploadPath := uploadDir.GetPath()
+	id := uploadPath[len(uploadPath)-1]
 
-	blobDir, err := bs.openBlobDir(id)
+	dstPath := append(bs.blobsDir.GetPath(), id)
+	blobDir, err := uploadDir.MoveTo(tr, dstPath)
 
 	if err != nil {
-		return id, err
+		return Id(id), err
 	}
 
+	unixTimestamp := time.Now().Unix()
 	tr.Set(blobDir.Sub("createdAt"), encodeUInt64(uint64(unixTimestamp)))
 
-	return id, nil
+	return Id(id), nil
 }
 
 func (bs *fdbBlobStore) Create(cxt context.Context, r io.Reader) (Blob, error) {
@@ -221,7 +225,7 @@ func (bs *fdbBlobStore) Create(cxt context.Context, r io.Reader) (Blob, error) {
 		return nil, err
 	}
 
-	_, err = bs.db.Transact(func(tr fdb.Transaction) (any, error) {
+	id, err := bs.db.Transact(func(tr fdb.Transaction) (any, error) {
 		return bs.CommitUpload(tr, uploadToken)
 	})
 
@@ -229,5 +233,5 @@ func (bs *fdbBlobStore) Create(cxt context.Context, r io.Reader) (Blob, error) {
 		return nil, err
 	}
 
-	return bs.Blob(uploadToken.id())
+	return bs.Blob(id.(Id))
 }
