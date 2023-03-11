@@ -66,7 +66,7 @@ func (store *Store) Upload(ctx context.Context, r io.Reader) (UploadToken, error
 
 	uploadDir, err := store.uploadsDir.Create(store.db, []string{string(id)}, nil)
 
-	token := uploadToken{dir: uploadDir}
+	token := UploadToken{dir: uploadDir}
 
 	if err != nil {
 		return token, err
@@ -87,8 +87,12 @@ func (store *Store) Upload(ctx context.Context, r io.Reader) (UploadToken, error
 	return token, err
 }
 
-func (store *Store) CommitUpload(tr fdb.Transaction, uploadToken UploadToken) (Id, error) {
-	uploadDir := uploadToken.sub()
+func (store *Store) CommitUpload(tr fdb.Transaction, token UploadToken) (Id, error) {
+	if token.dir == nil {
+		return "", InvalidUploadTokenError
+	}
+
+	uploadDir := token.dir
 	uploadPath := uploadDir.GetPath()
 	id := uploadPath[len(uploadPath)-1]
 

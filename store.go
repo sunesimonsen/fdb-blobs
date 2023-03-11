@@ -15,20 +15,12 @@ func (id Id) id() Id {
 	return id
 }
 
-type UploadToken interface {
-	sub() directory.DirectorySubspace
-}
-
-type uploadToken struct {
-	dir directory.DirectorySubspace
-}
-
-func (u uploadToken) sub() directory.DirectorySubspace {
-	return u.dir
-}
-
 func (id Id) FDBKey() fdb.Key {
 	return []byte(id)
+}
+
+type UploadToken struct {
+	dir directory.DirectorySubspace
 }
 
 type Store struct {
@@ -127,13 +119,13 @@ func (store *Store) Blob(id Id) (*Blob, error) {
 }
 
 func (store *Store) Create(ctx context.Context, r io.Reader) (*Blob, error) {
-	uploadToken, err := store.Upload(ctx, r)
+	token, err := store.Upload(ctx, r)
 	if err != nil {
 		return nil, err
 	}
 
 	id, err := store.db.Transact(func(tr fdb.Transaction) (any, error) {
-		return store.CommitUpload(tr, uploadToken)
+		return store.CommitUpload(tr, token)
 	})
 
 	if err != nil {
