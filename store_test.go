@@ -5,10 +5,12 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"log"
 	"strings"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
+	"github.com/oklog/ulid/v2"
 )
 
 func TestCreateRead(t *testing.T) {
@@ -115,6 +117,40 @@ func TestRead(t *testing.T) {
 
 		_, err = blob.Content(ctx)
 		assert.EqualError(t, err, "context canceled")
+	})
+
+	t.Run("supports reading blobs with a different chunk size than the store", func(t *testing.T) {
+		db := fdbConnect()
+		ns := "test-" + ulid.Make().String()
+		store, err := NewStore(db, ns)
+
+		if err != nil {
+			log.Fatalf("Can't create blob store %v", err)
+		}
+
+		ctx := context.Background()
+		input := make([]byte, 400)
+		_, err = rand.Read(input)
+		assert.NoError(t, err)
+
+		ids := []Id(nil)
+		chunkSizes := []int{1, 10, 100, 101, 2000}
+		for _, chunkSize := range chunkSizes {
+			store, err := NewStore(db, ns, WithChunkSize(chunkSize))
+			assert.NoError(t, err)
+			blob, err := store.Create(ctx, bytes.NewReader(input))
+			assert.NoError(t, err)
+			ids = append(ids, blob.Id())
+		}
+
+		for _, id := range ids {
+			blob, err := store.Blob(id)
+			assert.NoError(t, err)
+
+			content, err := blob.Content(ctx)
+
+			assert.Equal(t, input, content)
+		}
 	})
 }
 

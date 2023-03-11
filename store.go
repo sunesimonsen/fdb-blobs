@@ -108,10 +108,20 @@ func (store *Store) Blob(id Id) (*Blob, error) {
 		return nil, err
 	}
 
+	data, err := store.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
+		return tr.Get(blobDir.Sub("chunkSize")).Get()
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	chunkSize := int(decodeUInt64(data.([]byte)))
+
 	blob := &Blob{
 		db:                   store.db,
 		dir:                  blobDir,
-		chunkSize:            store.chunkSize,
+		chunkSize:            chunkSize,
 		chunksPerTransaction: store.chunksPerTransaction,
 	}
 

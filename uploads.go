@@ -55,6 +55,7 @@ func (store *Store) write(ctx context.Context, blobDir subspace.Subspace, r io.R
 
 	_, err := store.db.Transact(func(tr fdb.Transaction) (any, error) {
 		tr.Set(blobDir.Sub("len"), encodeUInt64(written))
+		tr.Set(blobDir.Sub("chunkSize"), encodeUInt64(uint64(store.chunkSize)))
 		return nil, nil
 	})
 
