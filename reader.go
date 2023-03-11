@@ -8,7 +8,7 @@ import (
 	"github.com/apple/foundationdb/bindings/go/src/fdb/directory"
 )
 
-type Reader struct {
+type reader struct {
 	db                   fdb.Database
 	dir                  directory.DirectorySubspace
 	off                  int
@@ -17,7 +17,7 @@ type Reader struct {
 	chunksPerTransaction int
 }
 
-func (br *Reader) Read(buf []byte) (int, error) {
+func (br *reader) Read(buf []byte) (int, error) {
 	read := copy(buf, br.buf)
 	br.buf = br.buf[read:]
 
@@ -26,6 +26,7 @@ func (br *Reader) Read(buf []byte) (int, error) {
 		return read, nil
 	}
 
+	br.dir.Sub("chunkSize")
 	bytesSpace := br.dir.Sub("bytes")
 
 	_, err := br.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {

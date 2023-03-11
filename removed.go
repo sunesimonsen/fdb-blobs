@@ -6,6 +6,11 @@ import (
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 )
 
+// Marks the blob with the given id as removed.
+//
+// After a blob is removed it can't be retrieved anymore, but any active readers
+// can still access the removed blob. The removed blobs can be fully deleted
+// using the [Store.DeleteRemovedBlobsBefore] method.
 func (store *Store) RemoveBlob(id Id) error {
 	_, err := store.db.Transact(func(tr fdb.Transaction) (any, error) {
 		blobDir, err := store.openBlobDir(id)
@@ -25,6 +30,9 @@ func (store *Store) RemoveBlob(id Id) error {
 	return err
 }
 
+// Deletes blobs that was marked as removed before a given date.
+//
+// This is useful to make a periodical cleaning job.
 func (store *Store) DeleteRemovedBlobsBefore(date time.Time) ([]Id, error) {
 	var deletedIds []Id
 	_, err := store.db.Transact(func(tr fdb.Transaction) (any, error) {
