@@ -11,17 +11,17 @@ import (
 )
 
 func TestRemoveBlob(t *testing.T) {
-	s := setupTestStore(WithChunkSize(100))
+	store := setupTestStore(WithChunkSize(100))
 
 	t.Run("can't retrieve blob after it is removed", func(t *testing.T) {
 		ctx := context.Background()
 
-		blob, err := s.Create(ctx, strings.NewReader("blob"))
+		blob, err := store.Create(ctx, strings.NewReader("blob"))
 		assert.NoError(t, err)
-		err = s.RemoveBlob(blob.Id())
+		err = store.RemoveBlob(blob.Id())
 		assert.NoError(t, err)
 
-		_, err = s.Blob(blob.Id())
+		_, err = store.Blob(blob.Id())
 		errorMessage := fmt.Sprintf("blob not found: %q", blob.Id())
 		assert.EqualError(t, err, errorMessage)
 	})
@@ -29,9 +29,9 @@ func TestRemoveBlob(t *testing.T) {
 	t.Run("already retrieved blobs are accessible", func(t *testing.T) {
 		ctx := context.Background()
 
-		blob, err := s.Create(ctx, strings.NewReader("blob"))
+		blob, err := store.Create(ctx, strings.NewReader("blob"))
 		assert.NoError(t, err)
-		err = s.RemoveBlob(blob.Id())
+		err = store.RemoveBlob(blob.Id())
 		assert.NoError(t, err)
 
 		data, err := blob.Content(ctx)
@@ -46,7 +46,7 @@ func TestDeleteRemovedBlobsBefore(t *testing.T) {
 
 	st := &systemTimeMock{}
 
-	s := setupTestStore(
+	store := setupTestStore(
 		WithChunkSize(100),
 		WithSystemTime(st),
 	)
@@ -56,21 +56,21 @@ func TestDeleteRemovedBlobsBefore(t *testing.T) {
 
 		st.now = date.AddDate(0, -2, 0)
 		for i := 0; i < 5; i++ {
-			blob, err := s.Create(ctx, strings.NewReader("content"))
+			blob, err := store.Create(ctx, strings.NewReader("content"))
 			assert.NoError(t, err)
-			err = s.RemoveBlob(blob.Id())
+			err = store.RemoveBlob(blob.Id())
 			assert.NoError(t, err)
 		}
 
 		st.now = date
 		for i := 0; i < 5; i++ {
-			blob, err := s.Create(ctx, strings.NewReader("content"))
+			blob, err := store.Create(ctx, strings.NewReader("content"))
 			assert.NoError(t, err)
-			err = s.RemoveBlob(blob.Id())
+			err = store.RemoveBlob(blob.Id())
 			assert.NoError(t, err)
 		}
 
-		deleted, err := s.DeleteRemovedBlobsBefore(date.AddDate(0, -1, 0))
+		deleted, err := store.DeleteRemovedBlobsBefore(date.AddDate(0, -1, 0))
 		assert.NoError(t, err)
 
 		assert.Equal(t, 5, len(deleted), "Removed blobs that was deleted")
