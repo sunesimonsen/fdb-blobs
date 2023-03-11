@@ -15,7 +15,7 @@ import (
 func TestUploadCommit(t *testing.T) {
 	db := fdbConnect()
 	ns := "test-" + ulid.Make().String()
-	store, err := NewFdbStore(db, ns)
+	store, err := NewStore(db, ns)
 
 	if err != nil {
 		log.Fatalf("Can't create blob store %v", err)

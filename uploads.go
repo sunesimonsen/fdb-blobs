@@ -10,7 +10,7 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
-func (store *fdbBlobStore) write(ctx context.Context, blobDir subspace.Subspace, r io.Reader) error {
+func (store *Store) write(ctx context.Context, blobDir subspace.Subspace, r io.Reader) error {
 	chunk := make([]byte, store.chunkSize)
 	var written uint64
 	var chunkIndex int
@@ -61,7 +61,7 @@ func (store *fdbBlobStore) write(ctx context.Context, blobDir subspace.Subspace,
 	return err
 }
 
-func (store *fdbBlobStore) Upload(ctx context.Context, r io.Reader) (UploadToken, error) {
+func (store *Store) Upload(ctx context.Context, r io.Reader) (UploadToken, error) {
 	id := Id(ulid.Make().String())
 
 	uploadDir, err := store.uploadsDir.Create(store.db, []string{string(id)}, nil)
@@ -87,7 +87,7 @@ func (store *fdbBlobStore) Upload(ctx context.Context, r io.Reader) (UploadToken
 	return token, err
 }
 
-func (store *fdbBlobStore) CommitUpload(tr fdb.Transaction, uploadToken UploadToken) (Id, error) {
+func (store *Store) CommitUpload(tr fdb.Transaction, uploadToken UploadToken) (Id, error) {
 	uploadDir := uploadToken.sub()
 	uploadPath := uploadDir.GetPath()
 	id := uploadPath[len(uploadPath)-1]
@@ -105,7 +105,7 @@ func (store *fdbBlobStore) CommitUpload(tr fdb.Transaction, uploadToken UploadTo
 	return Id(id), nil
 }
 
-func (store *fdbBlobStore) DeleteUploadsStartedBefore(date time.Time) ([]Id, error) {
+func (store *Store) DeleteUploadsStartedBefore(date time.Time) ([]Id, error) {
 	var deletedIds []Id
 	_, err := store.db.Transact(func(tr fdb.Transaction) (any, error) {
 		ids, err := store.uploadsDir.List(tr, []string{})

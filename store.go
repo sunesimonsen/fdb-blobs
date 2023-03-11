@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/apple/foundationdb/bindings/go/src/fdb/directory"
@@ -32,17 +31,7 @@ func (id Id) FDBKey() fdb.Key {
 	return []byte(id)
 }
 
-type BlobStore interface {
-	Upload(ctx context.Context, r io.Reader) (UploadToken, error)
-	CommitUpload(tr fdb.Transaction, uploadToken UploadToken) (Id, error)
-	Create(ctx context.Context, r io.Reader) (Blob, error)
-	Blob(id Id) (Blob, error)
-	RemoveBlob(id Id) error
-	DeleteUploadsStartedBefore(date time.Time) ([]Id, error)
-	DeleteRemovedBlobsBefore(date time.Time) ([]Id, error)
-}
-
-type fdbBlobStore struct {
+type Store struct {
 	db                   fdb.Database
 	blobsDir             directory.DirectorySubspace
 	removedDir           directory.DirectorySubspace
@@ -52,10 +41,10 @@ type fdbBlobStore struct {
 	systemTime           SystemTime
 }
 
-type Option func(br *fdbBlobStore) error
+type Option func(br *Store) error
 
 func WithChunkSize(chunkSize int) Option {
-	return func(br *fdbBlobStore) error {
+	return func(br *Store) error {
 		if chunkSize < 1 {
 			return fmt.Errorf("invalid chunkSize 1 > %d", chunkSize)
 		}
@@ -65,7 +54,7 @@ func WithChunkSize(chunkSize int) Option {
 }
 
 func WithChunksPerTransaction(chunksPerTransaction int) Option {
-	return func(br *fdbBlobStore) error {
+	return func(br *Store) error {
 		if chunksPerTransaction < 1 {
 			return fmt.Errorf("invalid chunksPerTransaction 1 > %d", chunksPerTransaction)
 		}
@@ -75,13 +64,13 @@ func WithChunksPerTransaction(chunksPerTransaction int) Option {
 }
 
 func WithSystemTime(systemTime SystemTime) Option {
-	return func(br *fdbBlobStore) error {
+	return func(br *Store) error {
 		br.systemTime = systemTime
 		return nil
 	}
 }
 
-func NewFdbStore(db fdb.Database, ns string, opts ...Option) (BlobStore, error) {
+func NewStore(db fdb.Database, ns string, opts ...Option) (*Store, error) {
 	dir, err := directory.CreateOrOpen(db, []string{"fdb-blobs", ns}, nil)
 	blobsDir, err := dir.CreateOrOpen(db, []string{"blobs"}, nil)
 	uploadsDir, err := dir.CreateOrOpen(db, []string{"uploads"}, nil)
@@ -90,7 +79,7 @@ func NewFdbStore(db fdb.Database, ns string, opts ...Option) (BlobStore, error) 
 		return nil, err
 	}
 
-	store := &fdbBlobStore{
+	store := &Store{
 		db:                   db,
 		blobsDir:             blobsDir,
 		uploadsDir:           uploadsDir,
@@ -110,7 +99,7 @@ func NewFdbStore(db fdb.Database, ns string, opts ...Option) (BlobStore, error) 
 	return store, nil
 }
 
-func (store *fdbBlobStore) openBlobDir(id Id) (directory.DirectorySubspace, error) {
+func (store *Store) openBlobDir(id Id) (directory.DirectorySubspace, error) {
 	blobDir, err := store.blobsDir.Open(store.db, []string{string(id)}, nil)
 
 	if err != nil {
@@ -120,14 +109,14 @@ func (store *fdbBlobStore) openBlobDir(id Id) (directory.DirectorySubspace, erro
 	return blobDir, nil
 }
 
-func (store *fdbBlobStore) Blob(id Id) (Blob, error) {
+func (store *Store) Blob(id Id) (*Blob, error) {
 	blobDir, err := store.openBlobDir(id)
 
 	if err != nil {
 		return nil, err
 	}
 
-	blob := &fdbBlob{
+	blob := &Blob{
 		db:                   store.db,
 		dir:                  blobDir,
 		chunkSize:            store.chunkSize,
@@ -137,7 +126,7 @@ func (store *fdbBlobStore) Blob(id Id) (Blob, error) {
 	return blob, err
 }
 
-func (store *fdbBlobStore) Create(ctx context.Context, r io.Reader) (Blob, error) {
+func (store *Store) Create(ctx context.Context, r io.Reader) (*Blob, error) {
 	uploadToken, err := store.Upload(ctx, r)
 	if err != nil {
 		return nil, err
