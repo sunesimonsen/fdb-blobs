@@ -22,10 +22,10 @@ func fdbConnect() fdb.Database {
 	return fdb.MustOpenDatabase(os.Getenv("FDB_CLUSTER_FILE"))
 }
 
-func setupTestStore(opts ...Option) BlobStore {
+func setupTestStore(opts ...Option) *Store {
 	db := fdbConnect()
 	ns := "test-" + ulid.Make().String()
-	store, err := NewFdbStore(db, ns, opts...)
+	store, err := NewStore(db, ns, opts...)
 
 	if err != nil {
 		log.Fatalf("Can't create blob store %v", err)
