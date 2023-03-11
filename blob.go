@@ -23,14 +23,14 @@ func (blob *Blob) Id() Id {
 	return Id(id)
 }
 
-func (blob *Blob) Len() (int, error) {
+func (blob *Blob) Len() (uint64, error) {
 	length, err := blob.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
 		data, error := tr.Get(blob.dir.Sub("len")).Get()
 
-		return int(decodeUInt64(data)), error
+		return decodeUInt64(data), error
 	})
 
-	return length.(int), err
+	return length.(uint64), err
 }
 
 func (blob *Blob) CreatedAt() (time.Time, error) {

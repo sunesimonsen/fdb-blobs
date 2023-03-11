@@ -14,7 +14,7 @@ func TestLen(t *testing.T) {
 	s := setupTestStore(WithChunkSize(100))
 
 	t.Run("returns the length of the specified blob", func(t *testing.T) {
-		lengths := []int{0, 10, 100, 101, 2000}
+		lengths := []uint64{0, 10, 100, 101, 2000}
 
 		for _, length := range lengths {
 			input := make([]byte, length)
