@@ -25,11 +25,11 @@ func TestUploadCommit(t *testing.T) {
 		ctx := context.Background()
 
 		input := "Hello"
-		uploadToken, err := store.Upload(ctx, strings.NewReader(input))
+		token, err := store.Upload(ctx, strings.NewReader(input))
 		assert.NoError(t, err)
 
 		id, err := db.Transact(func(tr fdb.Transaction) (any, error) {
-			return store.CommitUpload(tr, uploadToken)
+			return store.CommitUpload(tr, token)
 		})
 		assert.NoError(t, err)
 
@@ -40,6 +40,14 @@ func TestUploadCommit(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.Equal(t, input, string(content), "Content of uploaded blob")
+	})
+
+	t.Run("rejects invalid tokens", func(t *testing.T) {
+
+		_, err := db.Transact(func(tr fdb.Transaction) (any, error) {
+			return store.CommitUpload(tr, UploadToken{})
+		})
+		assert.EqualError(t, err, "Invalid upload token, tokens needs to be produced by the upload method")
 	})
 }
 

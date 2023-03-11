@@ -88,10 +88,10 @@ func TestBlob(t *testing.T) {
 	t.Run("returns an error for a blob that is not fully uploaded", func(t *testing.T) {
 		ctx := context.Background()
 
-		uploadToken, err := store.Upload(ctx, strings.NewReader("Hello"))
+		token, err := store.Upload(ctx, strings.NewReader("Hello"))
 		assert.NoError(t, err)
 
-		uploadPath := uploadToken.sub().GetPath()
+		uploadPath := token.dir.GetPath()
 		id := Id(uploadPath[len(uploadPath)-1])
 		_, err = store.Blob(id)
 		errorMessage := fmt.Sprintf("blob not found: %q", id)
