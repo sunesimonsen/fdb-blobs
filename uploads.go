@@ -10,16 +10,16 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
-func (bs *fdbBlobStore) write(ctx context.Context, blobDir subspace.Subspace, r io.Reader) error {
-	chunk := make([]byte, bs.chunkSize)
+func (store *fdbBlobStore) write(ctx context.Context, blobDir subspace.Subspace, r io.Reader) error {
+	chunk := make([]byte, store.chunkSize)
 	var written uint64
 	var chunkIndex int
 
 	bytesSpace := blobDir.Sub("bytes")
 
 	for {
-		finished, err := bs.db.Transact(func(tr fdb.Transaction) (any, error) {
-			for i := 0; i < bs.chunksPerTransaction; i++ {
+		finished, err := store.db.Transact(func(tr fdb.Transaction) (any, error) {
+			for i := 0; i < store.chunksPerTransaction; i++ {
 				err := ctx.Err()
 				if err != nil {
 					return false, err
@@ -53,7 +53,7 @@ func (bs *fdbBlobStore) write(ctx context.Context, blobDir subspace.Subspace, r 
 		}
 	}
 
-	_, err := bs.db.Transact(func(tr fdb.Transaction) (any, error) {
+	_, err := store.db.Transact(func(tr fdb.Transaction) (any, error) {
 		tr.Set(blobDir.Sub("len"), encodeUInt64(written))
 		return nil, nil
 	})
@@ -61,10 +61,10 @@ func (bs *fdbBlobStore) write(ctx context.Context, blobDir subspace.Subspace, r 
 	return err
 }
 
-func (bs *fdbBlobStore) Upload(ctx context.Context, r io.Reader) (UploadToken, error) {
+func (store *fdbBlobStore) Upload(ctx context.Context, r io.Reader) (UploadToken, error) {
 	id := Id(ulid.Make().String())
 
-	uploadDir, err := bs.uploadsDir.Create(bs.db, []string{string(id)}, nil)
+	uploadDir, err := store.uploadsDir.Create(store.db, []string{string(id)}, nil)
 
 	token := uploadToken{dir: uploadDir}
 
@@ -72,8 +72,8 @@ func (bs *fdbBlobStore) Upload(ctx context.Context, r io.Reader) (UploadToken, e
 		return token, err
 	}
 
-	_, err = bs.db.Transact(func(tr fdb.Transaction) (any, error) {
-		unixTimestamp := bs.systemTime.Now().Unix()
+	_, err = store.db.Transact(func(tr fdb.Transaction) (any, error) {
+		unixTimestamp := store.systemTime.Now().Unix()
 		tr.Set(uploadDir.Sub("uploadStartedAt"), encodeUInt64(uint64(unixTimestamp)))
 		return nil, nil
 	})
@@ -82,40 +82,40 @@ func (bs *fdbBlobStore) Upload(ctx context.Context, r io.Reader) (UploadToken, e
 		return token, err
 	}
 
-	err = bs.write(ctx, uploadDir, r)
+	err = store.write(ctx, uploadDir, r)
 
 	return token, err
 }
 
-func (bs *fdbBlobStore) CommitUpload(tr fdb.Transaction, uploadToken UploadToken) (Id, error) {
+func (store *fdbBlobStore) CommitUpload(tr fdb.Transaction, uploadToken UploadToken) (Id, error) {
 	uploadDir := uploadToken.sub()
 	uploadPath := uploadDir.GetPath()
 	id := uploadPath[len(uploadPath)-1]
 
-	dstPath := append(bs.blobsDir.GetPath(), id)
+	dstPath := append(store.blobsDir.GetPath(), id)
 	blobDir, err := uploadDir.MoveTo(tr, dstPath)
 
 	if err != nil {
 		return Id(id), err
 	}
 
-	unixTimestamp := bs.systemTime.Now().Unix()
+	unixTimestamp := store.systemTime.Now().Unix()
 	tr.Set(blobDir.Sub("createdAt"), encodeUInt64(uint64(unixTimestamp)))
 
 	return Id(id), nil
 }
 
-func (bs *fdbBlobStore) DeleteUploadsStartedBefore(date time.Time) ([]Id, error) {
+func (store *fdbBlobStore) DeleteUploadsStartedBefore(date time.Time) ([]Id, error) {
 	var deletedIds []Id
-	_, err := bs.db.Transact(func(tr fdb.Transaction) (any, error) {
-		ids, err := bs.uploadsDir.List(tr, []string{})
+	_, err := store.db.Transact(func(tr fdb.Transaction) (any, error) {
+		ids, err := store.uploadsDir.List(tr, []string{})
 
 		if err != nil {
 			return nil, err
 		}
 
 		for _, id := range ids {
-			uploadDir, err := bs.uploadsDir.Open(tr, []string{id}, nil)
+			uploadDir, err := store.uploadsDir.Open(tr, []string{id}, nil)
 
 			if err != nil {
 				return nil, err
@@ -130,7 +130,7 @@ func (bs *fdbBlobStore) DeleteUploadsStartedBefore(date time.Time) ([]Id, error)
 			uploadStartedAt := time.Unix(int64(decodeUInt64(data)), 0)
 
 			if uploadStartedAt.Before(date) {
-				deleted, err := bs.uploadsDir.Remove(tr, []string{id})
+				deleted, err := store.uploadsDir.Remove(tr, []string{id})
 				if err != nil {
 					return nil, err
 				}

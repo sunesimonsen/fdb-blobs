@@ -56,7 +56,7 @@ func TestDeleteUploadsStartedBefore(t *testing.T) {
 
 	st := &systemTimeMock{}
 
-	s := setupTestStore(
+	store := setupTestStore(
 		WithChunkSize(100),
 		WithSystemTime(st),
 	)
@@ -66,17 +66,17 @@ func TestDeleteUploadsStartedBefore(t *testing.T) {
 
 		st.now = date.AddDate(0, -2, 0)
 		for i := 0; i < 5; i++ {
-			_, err := s.Upload(ctx, strings.NewReader("upload"))
+			_, err := store.Upload(ctx, strings.NewReader("upload"))
 			assert.NoError(t, err)
 		}
 
 		st.now = date
 		for i := 0; i < 5; i++ {
-			_, err := s.Upload(ctx, strings.NewReader("upload"))
+			_, err := store.Upload(ctx, strings.NewReader("upload"))
 			assert.NoError(t, err)
 		}
 
-		deleted, err := s.DeleteUploadsStartedBefore(date.AddDate(0, -1, 0))
+		deleted, err := store.DeleteUploadsStartedBefore(date.AddDate(0, -1, 0))
 		assert.NoError(t, err)
 
 		assert.Equal(t, 5, len(deleted), "Pending upload that was deleted")

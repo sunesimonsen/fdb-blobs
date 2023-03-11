@@ -25,15 +25,15 @@ type fdbBlob struct {
 	chunksPerTransaction int
 }
 
-func (b *fdbBlob) Id() Id {
-	path := b.dir.GetPath()
+func (blob *fdbBlob) Id() Id {
+	path := blob.dir.GetPath()
 	id := path[len(path)-1]
 	return Id(id)
 }
 
-func (b *fdbBlob) Len() (int, error) {
-	length, err := b.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
-		data, error := tr.Get(b.dir.Sub("len")).Get()
+func (blob *fdbBlob) Len() (int, error) {
+	length, err := blob.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
+		data, error := tr.Get(blob.dir.Sub("len")).Get()
 
 		return int(decodeUInt64(data)), error
 	})
@@ -41,9 +41,9 @@ func (b *fdbBlob) Len() (int, error) {
 	return length.(int), err
 }
 
-func (b *fdbBlob) CreatedAt() (time.Time, error) {
-	createdAt, err := b.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
-		data, error := tr.Get(b.dir.Sub("createdAt")).Get()
+func (blob *fdbBlob) CreatedAt() (time.Time, error) {
+	createdAt, err := blob.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
+		data, error := tr.Get(blob.dir.Sub("createdAt")).Get()
 
 		return time.Unix(int64(decodeUInt64(data)), 0), error
 	})
@@ -51,49 +51,49 @@ func (b *fdbBlob) CreatedAt() (time.Time, error) {
 	return createdAt.(time.Time), err
 }
 
-func (b *fdbBlob) Reader() (BlobReader, error) {
-	_, err := b.CreatedAt()
+func (blob *fdbBlob) Reader() (BlobReader, error) {
+	_, err := blob.CreatedAt()
 
 	reader := &fdbBlobReader{
-		db:                   b.db,
-		dir:                  b.dir,
-		chunkSize:            b.chunkSize,
-		chunksPerTransaction: b.chunksPerTransaction,
+		db:                   blob.db,
+		dir:                  blob.dir,
+		chunkSize:            blob.chunkSize,
+		chunksPerTransaction: blob.chunksPerTransaction,
 	}
 
 	return reader, err
 }
 
-func (b *fdbBlob) Content(ctx context.Context) ([]byte, error) {
-	var blob bytes.Buffer
-	var buf = make([]byte, b.chunkSize*b.chunksPerTransaction)
-	r, err := b.Reader()
+func (blob *fdbBlob) Content(ctx context.Context) ([]byte, error) {
+	var b bytes.Buffer
+	var buf = make([]byte, blob.chunkSize*blob.chunksPerTransaction)
+	r, err := blob.Reader()
 
 	if err != nil {
-		return blob.Bytes(), err
+		return b.Bytes(), err
 	}
 
 	for {
 		err := ctx.Err()
 		if err != nil {
-			return blob.Bytes(), err
+			return b.Bytes(), err
 		}
 
 		n, err := r.Read(buf)
 
 		if n > 0 {
-			_, err := blob.Write(buf[:n])
+			_, err := b.Write(buf[:n])
 			if err != nil {
-				return blob.Bytes(), err
+				return b.Bytes(), err
 			}
 		}
 
 		if err == io.EOF {
-			return blob.Bytes(), nil
+			return b.Bytes(), nil
 		}
 
 		if err != nil {
-			return blob.Bytes(), err
+			return b.Bytes(), err
 		}
 
 	}

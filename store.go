@@ -110,8 +110,8 @@ func NewFdbStore(db fdb.Database, ns string, opts ...Option) (BlobStore, error) 
 	return store, nil
 }
 
-func (bs *fdbBlobStore) openBlobDir(id Id) (directory.DirectorySubspace, error) {
-	blobDir, err := bs.blobsDir.Open(bs.db, []string{string(id)}, nil)
+func (store *fdbBlobStore) openBlobDir(id Id) (directory.DirectorySubspace, error) {
+	blobDir, err := store.blobsDir.Open(store.db, []string{string(id)}, nil)
 
 	if err != nil {
 		return blobDir, fmt.Errorf("%w: %q", BlobNotFoundError, id)
@@ -120,36 +120,36 @@ func (bs *fdbBlobStore) openBlobDir(id Id) (directory.DirectorySubspace, error) 
 	return blobDir, nil
 }
 
-func (bs *fdbBlobStore) Blob(id Id) (Blob, error) {
-	blobDir, err := bs.openBlobDir(id)
+func (store *fdbBlobStore) Blob(id Id) (Blob, error) {
+	blobDir, err := store.openBlobDir(id)
 
 	if err != nil {
 		return nil, err
 	}
 
 	blob := &fdbBlob{
-		db:                   bs.db,
+		db:                   store.db,
 		dir:                  blobDir,
-		chunkSize:            bs.chunkSize,
-		chunksPerTransaction: bs.chunksPerTransaction,
+		chunkSize:            store.chunkSize,
+		chunksPerTransaction: store.chunksPerTransaction,
 	}
 
 	return blob, err
 }
 
-func (bs *fdbBlobStore) Create(ctx context.Context, r io.Reader) (Blob, error) {
-	uploadToken, err := bs.Upload(ctx, r)
+func (store *fdbBlobStore) Create(ctx context.Context, r io.Reader) (Blob, error) {
+	uploadToken, err := store.Upload(ctx, r)
 	if err != nil {
 		return nil, err
 	}
 
-	id, err := bs.db.Transact(func(tr fdb.Transaction) (any, error) {
-		return bs.CommitUpload(tr, uploadToken)
+	id, err := store.db.Transact(func(tr fdb.Transaction) (any, error) {
+		return store.CommitUpload(tr, uploadToken)
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	return bs.Blob(id.(Id))
+	return store.Blob(id.(Id))
 }

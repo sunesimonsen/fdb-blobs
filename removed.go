@@ -6,17 +6,17 @@ import (
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 )
 
-func (bs *fdbBlobStore) RemoveBlob(id Id) error {
-	_, err := bs.db.Transact(func(tr fdb.Transaction) (any, error) {
-		blobDir, err := bs.openBlobDir(id)
+func (store *fdbBlobStore) RemoveBlob(id Id) error {
+	_, err := store.db.Transact(func(tr fdb.Transaction) (any, error) {
+		blobDir, err := store.openBlobDir(id)
 		if err != nil {
 			return nil, err
 		}
 
-		removedPath := append(bs.removedDir.GetPath(), string(id))
+		removedPath := append(store.removedDir.GetPath(), string(id))
 		dst, err := blobDir.MoveTo(tr, removedPath)
 
-		unixTimestamp := bs.systemTime.Now().Unix()
+		unixTimestamp := store.systemTime.Now().Unix()
 		tr.Set(dst.Sub("deletedAt"), encodeUInt64(uint64(unixTimestamp)))
 
 		return nil, err
@@ -25,17 +25,17 @@ func (bs *fdbBlobStore) RemoveBlob(id Id) error {
 	return err
 }
 
-func (bs *fdbBlobStore) DeleteRemovedBlobsBefore(date time.Time) ([]Id, error) {
+func (store *fdbBlobStore) DeleteRemovedBlobsBefore(date time.Time) ([]Id, error) {
 	var deletedIds []Id
-	_, err := bs.db.Transact(func(tr fdb.Transaction) (any, error) {
-		ids, err := bs.removedDir.List(tr, []string{})
+	_, err := store.db.Transact(func(tr fdb.Transaction) (any, error) {
+		ids, err := store.removedDir.List(tr, []string{})
 
 		if err != nil {
 			return nil, err
 		}
 
 		for _, id := range ids {
-			removedBlobDir, err := bs.removedDir.Open(tr, []string{id}, nil)
+			removedBlobDir, err := store.removedDir.Open(tr, []string{id}, nil)
 
 			if err != nil {
 				return nil, err
@@ -50,7 +50,7 @@ func (bs *fdbBlobStore) DeleteRemovedBlobsBefore(date time.Time) ([]Id, error) {
 			deletedAt := time.Unix(int64(decodeUInt64(data)), 0)
 
 			if deletedAt.Before(date) {
-				deleted, err := bs.removedDir.Remove(tr, []string{id})
+				deleted, err := store.removedDir.Remove(tr, []string{id})
 				if err != nil {
 					return nil, err
 				}
