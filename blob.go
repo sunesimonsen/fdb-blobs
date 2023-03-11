@@ -34,13 +34,12 @@ func (blob *Blob) Len() (uint64, error) {
 }
 
 func (blob *Blob) CreatedAt() (time.Time, error) {
-	createdAt, err := blob.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
-		data, error := tr.Get(blob.dir.Sub("createdAt")).Get()
+	data, err := blob.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
+		return tr.Get(blob.dir.Sub("createdAt")).Get()
 
-		return time.Unix(int64(decodeUInt64(data)), 0), error
 	})
 
-	return createdAt.(time.Time), err
+	return time.Unix(int64(decodeUInt64(data.([]byte))), 0), err
 }
 
 func (blob *Blob) Reader() (*Reader, error) {
