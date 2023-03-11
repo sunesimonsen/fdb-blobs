@@ -8,11 +8,7 @@ import (
 	"github.com/apple/foundationdb/bindings/go/src/fdb/directory"
 )
 
-type BlobReader interface {
-	io.Reader
-}
-
-type fdbBlobReader struct {
+type Reader struct {
 	db                   fdb.Database
 	dir                  directory.DirectorySubspace
 	off                  int
@@ -21,7 +17,7 @@ type fdbBlobReader struct {
 	chunksPerTransaction int
 }
 
-func (br *fdbBlobReader) Read(buf []byte) (int, error) {
+func (br *Reader) Read(buf []byte) (int, error) {
 	read := copy(buf, br.buf)
 	br.buf = br.buf[read:]
 

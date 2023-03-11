@@ -6,7 +6,7 @@ import (
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 )
 
-func (store *fdbBlobStore) RemoveBlob(id Id) error {
+func (store *Store) RemoveBlob(id Id) error {
 	_, err := store.db.Transact(func(tr fdb.Transaction) (any, error) {
 		blobDir, err := store.openBlobDir(id)
 		if err != nil {
@@ -25,7 +25,7 @@ func (store *fdbBlobStore) RemoveBlob(id Id) error {
 	return err
 }
 
-func (store *fdbBlobStore) DeleteRemovedBlobsBefore(date time.Time) ([]Id, error) {
+func (store *Store) DeleteRemovedBlobsBefore(date time.Time) ([]Id, error) {
 	var deletedIds []Id
 	_, err := store.db.Transact(func(tr fdb.Transaction) (any, error) {
 		ids, err := store.removedDir.List(tr, []string{})

@@ -10,28 +10,20 @@ import (
 	"github.com/apple/foundationdb/bindings/go/src/fdb/directory"
 )
 
-type Blob interface {
-	Id() Id
-	Len() (int, error)
-	CreatedAt() (time.Time, error)
-	Reader() (BlobReader, error)
-	Content(ctx context.Context) ([]byte, error)
-}
-
-type fdbBlob struct {
+type Blob struct {
 	db                   fdb.Database
 	dir                  directory.DirectorySubspace
 	chunkSize            int
 	chunksPerTransaction int
 }
 
-func (blob *fdbBlob) Id() Id {
+func (blob *Blob) Id() Id {
 	path := blob.dir.GetPath()
 	id := path[len(path)-1]
 	return Id(id)
 }
 
-func (blob *fdbBlob) Len() (int, error) {
+func (blob *Blob) Len() (int, error) {
 	length, err := blob.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
 		data, error := tr.Get(blob.dir.Sub("len")).Get()
 
@@ -41,7 +33,7 @@ func (blob *fdbBlob) Len() (int, error) {
 	return length.(int), err
 }
 
-func (blob *fdbBlob) CreatedAt() (time.Time, error) {
+func (blob *Blob) CreatedAt() (time.Time, error) {
 	createdAt, err := blob.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
 		data, error := tr.Get(blob.dir.Sub("createdAt")).Get()
 
@@ -51,10 +43,10 @@ func (blob *fdbBlob) CreatedAt() (time.Time, error) {
 	return createdAt.(time.Time), err
 }
 
-func (blob *fdbBlob) Reader() (BlobReader, error) {
+func (blob *Blob) Reader() (*Reader, error) {
 	_, err := blob.CreatedAt()
 
-	reader := &fdbBlobReader{
+	reader := &Reader{
 		db:                   blob.db,
 		dir:                  blob.dir,
 		chunkSize:            blob.chunkSize,
@@ -64,7 +56,7 @@ func (blob *fdbBlob) Reader() (BlobReader, error) {
 	return reader, err
 }
 
-func (blob *fdbBlob) Content(ctx context.Context) ([]byte, error) {
+func (blob *Blob) Content(ctx context.Context) ([]byte, error) {
 	var b bytes.Buffer
 	var buf = make([]byte, blob.chunkSize*blob.chunksPerTransaction)
 	r, err := blob.Reader()
