@@ -2,6 +2,7 @@ package blobs
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strings"
 	"testing"
@@ -11,6 +12,25 @@ import (
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/oklog/ulid/v2"
 )
+
+func TestUpload(t *testing.T) {
+	store := createTestStore()
+
+	t.Run("doesn't create a blob before it is committed", func(t *testing.T) {
+		ctx := context.Background()
+
+		input := "Hello"
+		token, err := store.Upload(ctx, strings.NewReader(input))
+		assert.NoError(t, err)
+
+		uploadPath := token.dir.GetPath()
+		id := uploadPath[len(uploadPath)-1]
+		_, err = store.Blob(Id(id))
+
+		errorMessage := fmt.Sprintf("blob not found: %q", id)
+		assert.EqualError(t, err, errorMessage)
+	})
+}
 
 func TestUploadCommit(t *testing.T) {
 	db := fdbConnect()
@@ -51,20 +71,12 @@ func TestUploadCommit(t *testing.T) {
 	})
 }
 
-type systemTimeMock struct {
-	now time.Time
-}
-
-func (c *systemTimeMock) Now() time.Time {
-	return c.now
-}
-
 func TestDeleteUploadsStartedBefore(t *testing.T) {
 	date, _ := time.Parse(time.RFC3339, "2023-01-01T00:00:00Z")
 
-	st := &systemTimeMock{}
+	st := &SystemTimeMock{}
 
-	store := setupTestStore(
+	store := createTestStore(
 		WithChunkSize(100),
 		WithSystemTime(st),
 	)
@@ -72,13 +84,13 @@ func TestDeleteUploadsStartedBefore(t *testing.T) {
 	t.Run("Test that old uploads can be cleaned", func(t *testing.T) {
 		ctx := context.Background()
 
-		st.now = date.AddDate(0, -2, 0)
+		st.Time = date.AddDate(0, -2, 0)
 		for i := 0; i < 5; i++ {
 			_, err := store.Upload(ctx, strings.NewReader("upload"))
 			assert.NoError(t, err)
 		}
 
-		st.now = date
+		st.Time = date
 		for i := 0; i < 5; i++ {
 			_, err := store.Upload(ctx, strings.NewReader("upload"))
 			assert.NoError(t, err)
