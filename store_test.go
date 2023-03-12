@@ -14,7 +14,7 @@ import (
 )
 
 func TestCreateRead(t *testing.T) {
-	store := setupTestStore(WithChunkSize(100))
+	store := createTestStore(WithChunkSize(100))
 
 	t.Run("a newly created blob can be extracted with the returned id", func(t *testing.T) {
 		text := "my-blob"
@@ -50,7 +50,7 @@ func TestCreateRead(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
-	store := setupTestStore(WithChunkSize(100))
+	store := createTestStore(WithChunkSize(100))
 
 	t.Run("returns a blob with the correct content", func(t *testing.T) {
 		ctx := context.Background()
@@ -80,7 +80,7 @@ func TestCreate(t *testing.T) {
 }
 
 func TestBlob(t *testing.T) {
-	store := setupTestStore(WithChunkSize(100))
+	store := createTestStore(WithChunkSize(100))
 
 	t.Run("returns an error for a blob that doesn't exists", func(t *testing.T) {
 		_, err := store.Blob("missing")
@@ -102,7 +102,7 @@ func TestBlob(t *testing.T) {
 }
 
 func TestRead(t *testing.T) {
-	store := setupTestStore(WithChunkSize(100))
+	store := createTestStore(WithChunkSize(100))
 
 	t.Run("returns an error if the context is cancelled", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -160,7 +160,7 @@ func FuzzChunkSizes(f *testing.F) {
 			t.Skip()
 		}
 
-		store := setupTestStore(WithChunkSize(chunkSize), WithChunksPerTransaction(chunksPerTransaction))
+		store := createTestStore(WithChunkSize(chunkSize), WithChunksPerTransaction(chunksPerTransaction))
 
 		ctx := context.Background()
 		blob, err := store.Create(ctx, bytes.NewReader(input))

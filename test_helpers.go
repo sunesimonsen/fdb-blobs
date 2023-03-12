@@ -1,9 +1,12 @@
 package blobs
 
 import (
+	"context"
 	"log"
 	"os"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/oklog/ulid/v2"
@@ -22,9 +25,13 @@ func fdbConnect() fdb.Database {
 	return fdb.MustOpenDatabase(os.Getenv("FDB_CLUSTER_FILE"))
 }
 
-func setupTestStore(opts ...Option) *Store {
+func testNamespace() string {
+	return "test-" + ulid.Make().String()
+}
+
+func createTestStore(opts ...Option) *Store {
 	db := fdbConnect()
-	ns := "test-" + ulid.Make().String()
+	ns := testNamespace()
 	store, err := NewStore(db, ns, opts...)
 
 	if err != nil {
@@ -32,4 +39,21 @@ func setupTestStore(opts ...Option) *Store {
 	}
 
 	return store
+}
+
+func createTestBlob() *Blob {
+	date, _ := time.Parse(time.RFC3339, "2023-01-01T00:00:00Z")
+	st := &SystemTimeMock{Time: date}
+
+	store := createTestStore(WithSystemTime(st), WithIdGenerator(&TestIdgenerator{}))
+	ctx := context.Background()
+
+	r := strings.NewReader("My blob content")
+	blob, err := store.Create(ctx, r)
+
+	if err != nil {
+		log.Fatal("Could not create blob")
+	}
+
+	return blob
 }
