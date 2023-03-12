@@ -2,6 +2,7 @@ package blobs
 
 import (
 	"context"
+	"errors"
 	"io"
 	"time"
 
@@ -62,6 +63,8 @@ func (store *Store) write(ctx context.Context, blobDir subspace.Subspace, r io.R
 	return err
 }
 
+// Uploads the content of the given reader r into a temporary location and
+// returns a token for commiting the upload on a transaction later.
 func (store *Store) Upload(ctx context.Context, r io.Reader) (UploadToken, error) {
 	id := Id(ulid.Make().String())
 
@@ -88,9 +91,11 @@ func (store *Store) Upload(ctx context.Context, r io.Reader) (UploadToken, error
 	return token, err
 }
 
+// Commits an upload with the given token on a transaction. This creates a blob
+// from the upload and returns its id.
 func (store *Store) CommitUpload(tr fdb.Transaction, token UploadToken) (Id, error) {
 	if token.dir == nil {
-		return "", InvalidUploadTokenError
+		return "", errors.New("Invalid upload token, tokens needs to be produced by the upload method")
 	}
 
 	uploadDir := token.dir
@@ -110,6 +115,9 @@ func (store *Store) CommitUpload(tr fdb.Transaction, token UploadToken) (Id, err
 	return Id(id), nil
 }
 
+// Deletes uploads that was started before a given time.
+//
+// This is useful to make a periodical cleaning job.
 func (store *Store) DeleteUploadsStartedBefore(date time.Time) ([]Id, error) {
 	var deletedIds []Id
 	_, err := store.db.Transact(func(tr fdb.Transaction) (any, error) {

@@ -2,5 +2,5 @@ package blobs
 
 import "errors"
 
+// Error for when a blob can't be found.
 var BlobNotFoundError = errors.New("blob not found")
-var InvalidUploadTokenError = errors.New("Invalid upload token, tokens needs to be produced by the upload method")
