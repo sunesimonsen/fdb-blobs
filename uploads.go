@@ -8,7 +8,6 @@ import (
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/apple/foundationdb/bindings/go/src/fdb/subspace"
-	"github.com/oklog/ulid/v2"
 )
 
 func (store *Store) write(ctx context.Context, blobDir subspace.Subspace, r io.Reader) error {
@@ -66,7 +65,7 @@ func (store *Store) write(ctx context.Context, blobDir subspace.Subspace, r io.R
 // Uploads the content of the given reader r into a temporary location and
 // returns a token for commiting the upload on a transaction later.
 func (store *Store) Upload(ctx context.Context, r io.Reader) (UploadToken, error) {
-	id := Id(ulid.Make().String())
+	id := store.idGenerator.NextId()
 
 	uploadDir, err := store.uploadsDir.Create(store.db, []string{string(id)}, nil)
 

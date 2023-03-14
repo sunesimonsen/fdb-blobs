@@ -11,7 +11,7 @@ import (
 )
 
 func TestRemoveBlob(t *testing.T) {
-	store := setupTestStore(WithChunkSize(100))
+	store := createTestStore(WithChunkSize(100))
 
 	t.Run("can't retrieve blob after it is removed", func(t *testing.T) {
 		ctx := context.Background()
@@ -44,9 +44,9 @@ func TestRemoveBlob(t *testing.T) {
 func TestDeleteRemovedBlobsBefore(t *testing.T) {
 	date, _ := time.Parse(time.RFC3339, "2023-01-01T00:00:00Z")
 
-	st := &systemTimeMock{}
+	st := &SystemTimeMock{}
 
-	store := setupTestStore(
+	store := createTestStore(
 		WithChunkSize(100),
 		WithSystemTime(st),
 	)
@@ -54,7 +54,7 @@ func TestDeleteRemovedBlobsBefore(t *testing.T) {
 	t.Run("Test that old uploads can be cleaned", func(t *testing.T) {
 		ctx := context.Background()
 
-		st.now = date.AddDate(0, -2, 0)
+		st.Time = date.AddDate(0, -2, 0)
 		for i := 0; i < 5; i++ {
 			blob, err := store.Create(ctx, strings.NewReader("content"))
 			assert.NoError(t, err)
@@ -62,7 +62,7 @@ func TestDeleteRemovedBlobsBefore(t *testing.T) {
 			assert.NoError(t, err)
 		}
 
-		st.now = date
+		st.Time = date
 		for i := 0; i < 5; i++ {
 			blob, err := store.Create(ctx, strings.NewReader("content"))
 			assert.NoError(t, err)

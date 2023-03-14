@@ -23,56 +23,24 @@ type Store struct {
 	chunkSize            int
 	chunksPerTransaction int
 	systemTime           SystemTime
-}
-
-// Store option type.
-type Option func(br *Store) error
-
-// Sets the chunk size used to store blobs.
-//
-// Notice it is always possible to read blobs no matter what chunk size they
-// were stored with, as that information is saved with the blob.
-//
-// The chunk size needs to be greater than zero and honour the limits of FoundationDB key value sizes.
-func WithChunkSize(chunkSize int) Option {
-	return func(br *Store) error {
-		if chunkSize < 1 {
-			return fmt.Errorf("invalid chunkSize 1 > %d", chunkSize)
-		}
-		br.chunkSize = chunkSize
-		return nil
-	}
-}
-
-// Set the number of chunks commited per transaction.
-//
-// The chunks per transaction needs to honour the FoundationDB transction size.
-func WithChunksPerTransaction(chunksPerTransaction int) Option {
-	return func(br *Store) error {
-		if chunksPerTransaction < 1 {
-			return fmt.Errorf("invalid chunksPerTransaction 1 > %d", chunksPerTransaction)
-		}
-		br.chunksPerTransaction = chunksPerTransaction
-		return nil
-	}
-}
-
-// Provide a system time instance, to override how timestamps are calculated.
-//
-// This is useful for custom timestamp calculation and for mocking.
-func WithSystemTime(systemTime SystemTime) Option {
-	return func(br *Store) error {
-		br.systemTime = systemTime
-		return nil
-	}
+	idGenerator          IdGenerator
 }
 
 // NewStore constructs a new blob store with the given FoundationDB instance, a
 // namespace ns the blobs are stored under and a list of options.
 func NewStore(db fdb.Database, ns string, opts ...Option) (*Store, error) {
 	dir, err := directory.CreateOrOpen(db, []string{"fdb-blobs", ns}, nil)
+	if err != nil {
+		return nil, err
+	}
 	blobsDir, err := dir.CreateOrOpen(db, []string{"blobs"}, nil)
+	if err != nil {
+		return nil, err
+	}
 	uploadsDir, err := dir.CreateOrOpen(db, []string{"uploads"}, nil)
+	if err != nil {
+		return nil, err
+	}
 	removedDir, err := dir.CreateOrOpen(db, []string{"removed"}, nil)
 	if err != nil {
 		return nil, err
@@ -86,6 +54,7 @@ func NewStore(db fdb.Database, ns string, opts ...Option) (*Store, error) {
 		chunkSize:            10000,
 		chunksPerTransaction: 100,
 		systemTime:           realClock{},
+		idGenerator:          UlidIdGenerator{},
 	}
 
 	for _, opt := range opts {

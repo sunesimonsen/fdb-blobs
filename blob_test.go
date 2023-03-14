@@ -11,7 +11,7 @@ import (
 )
 
 func TestLen(t *testing.T) {
-	s := setupTestStore(WithChunkSize(100))
+	s := createTestStore(WithChunkSize(100))
 
 	t.Run("returns the length of the specified blob", func(t *testing.T) {
 		lengths := []uint64{0, 10, 100, 101, 2000}
@@ -35,7 +35,7 @@ func TestLen(t *testing.T) {
 }
 
 func TestCreatedAt(t *testing.T) {
-	s := setupTestStore(WithChunkSize(100))
+	s := createTestStore(WithChunkSize(100))
 
 	t.Run("returns the created time of the specified blob", func(t *testing.T) {
 		input := make([]byte, 10)
