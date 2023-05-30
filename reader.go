@@ -29,7 +29,7 @@ func (br *reader) Read(buf []byte) (int, error) {
 	br.dir.Sub("chunkSize")
 	bytesSpace := br.dir.Sub("bytes")
 
-	_, err := br.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
+	_, err := readTransact(br.db, func(tr fdb.ReadTransaction) (any, error) {
 		startChunk := br.off
 		endChunk := br.off + int(math.Ceil(float64(len(buf)-read)/float64(br.chunkSize)))
 		endChunkCap := int(math.Min(float64(startChunk+br.chunksPerTransaction), float64(endChunk))) + 1
