@@ -68,11 +68,11 @@ func ExampleStore_CommitUpload() {
 	r := strings.NewReader("My blob content")
 	token, err := store.Upload(ctx, r)
 
-	id, err := db.Transact(func(tr fdb.Transaction) (any, error) {
+	id, err := transact(db, func(tr fdb.Transaction) (Id, error) {
 		return store.CommitUpload(tr, token)
 	})
 
-	blob, err := store.Blob(id.(Id))
+	blob, err := store.Blob(id)
 	if err != nil {
 		log.Fatal("Could not retrieve blob")
 	}
@@ -209,11 +209,11 @@ func ExampleStore_Upload() {
 	r := strings.NewReader("My blob content")
 	token, err := store.Upload(ctx, r)
 
-	id, err := db.Transact(func(tr fdb.Transaction) (any, error) {
+	id, err := transact(db, func(tr fdb.Transaction) (Id, error) {
 		return store.CommitUpload(tr, token)
 	})
 
-	blob, err := store.Blob(id.(Id))
+	blob, err := store.Blob(id)
 	if err != nil {
 		log.Fatal("Could not retrieve blob")
 	}

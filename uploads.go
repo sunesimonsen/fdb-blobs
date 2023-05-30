@@ -18,7 +18,7 @@ func (store *Store) write(ctx context.Context, blobDir subspace.Subspace, r io.R
 	bytesSpace := blobDir.Sub("bytes")
 
 	for {
-		finished, err := store.db.Transact(func(tr fdb.Transaction) (any, error) {
+		finished, err := transact(store.db, func(tr fdb.Transaction) (bool, error) {
 			for i := 0; i < store.chunksPerTransaction; i++ {
 				err := ctx.Err()
 				if err != nil {
@@ -44,7 +44,7 @@ func (store *Store) write(ctx context.Context, blobDir subspace.Subspace, r io.R
 			return false, nil
 		})
 
-		if finished.(bool) {
+		if finished {
 			break
 		}
 
@@ -53,13 +53,11 @@ func (store *Store) write(ctx context.Context, blobDir subspace.Subspace, r io.R
 		}
 	}
 
-	_, err := store.db.Transact(func(tr fdb.Transaction) (any, error) {
+	return updateTransact(store.db, func(tr fdb.Transaction) error {
 		tr.Set(blobDir.Sub("len"), encodeUInt64(written))
 		tr.Set(blobDir.Sub("chunkSize"), encodeUInt64(uint64(store.chunkSize)))
-		return nil, nil
+		return nil
 	})
-
-	return err
 }
 
 // Uploads the content of the given reader r into a temporary location and
@@ -75,10 +73,10 @@ func (store *Store) Upload(ctx context.Context, r io.Reader) (UploadToken, error
 		return token, err
 	}
 
-	_, err = store.db.Transact(func(tr fdb.Transaction) (any, error) {
+	err = updateTransact(store.db, func(tr fdb.Transaction) error {
 		unixTimestamp := store.systemTime.Now().Unix()
 		tr.Set(uploadDir.Sub("uploadStartedAt"), encodeUInt64(uint64(unixTimestamp)))
-		return nil, nil
+		return nil
 	})
 
 	if err != nil {
@@ -119,24 +117,24 @@ func (store *Store) CommitUpload(tr fdb.Transaction, token UploadToken) (Id, err
 // This is useful to make a periodical cleaning job.
 func (store *Store) DeleteUploadsStartedBefore(date time.Time) ([]Id, error) {
 	var deletedIds []Id
-	_, err := store.db.Transact(func(tr fdb.Transaction) (any, error) {
+	err := updateTransact(store.db, func(tr fdb.Transaction) error {
 		ids, err := store.uploadsDir.List(tr, []string{})
 
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		for _, id := range ids {
 			uploadDir, err := store.uploadsDir.Open(tr, []string{id}, nil)
 
 			if err != nil {
-				return nil, err
+				return err
 			}
 
 			data, err := tr.Get(uploadDir.Sub("uploadStartedAt")).Get()
 
 			if err != nil {
-				return nil, err
+				return err
 			}
 
 			uploadStartedAt := time.Unix(int64(decodeUInt64(data)), 0)
@@ -144,7 +142,7 @@ func (store *Store) DeleteUploadsStartedBefore(date time.Time) ([]Id, error) {
 			if uploadStartedAt.Before(date) {
 				deleted, err := store.uploadsDir.Remove(tr, []string{id})
 				if err != nil {
-					return nil, err
+					return err
 				}
 
 				if deleted {
@@ -153,7 +151,7 @@ func (store *Store) DeleteUploadsStartedBefore(date time.Time) ([]Id, error) {
 			}
 		}
 
-		return nil, nil
+		return nil
 	})
 
 	return deletedIds, err

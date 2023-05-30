@@ -48,12 +48,12 @@ func TestUploadCommit(t *testing.T) {
 		token, err := store.Upload(ctx, strings.NewReader(input))
 		assert.NoError(t, err)
 
-		id, err := db.Transact(func(tr fdb.Transaction) (any, error) {
+		id, err := transact(db, func(tr fdb.Transaction) (Id, error) {
 			return store.CommitUpload(tr, token)
 		})
 		assert.NoError(t, err)
 
-		blob, err := store.Blob(id.(Id))
+		blob, err := store.Blob(id)
 		assert.NoError(t, err)
 
 		content, err := blob.Content(ctx)
@@ -64,7 +64,7 @@ func TestUploadCommit(t *testing.T) {
 
 	t.Run("rejects invalid tokens", func(t *testing.T) {
 
-		_, err := db.Transact(func(tr fdb.Transaction) (any, error) {
+		_, err := transact(db, func(tr fdb.Transaction) (any, error) {
 			return store.CommitUpload(tr, UploadToken{})
 		})
 		assert.EqualError(t, err, "Invalid upload token, tokens needs to be produced by the upload method")

@@ -85,7 +85,7 @@ func (store *Store) Blob(id Id) (*Blob, error) {
 		return nil, err
 	}
 
-	data, err := store.db.ReadTransact(func(tr fdb.ReadTransaction) (any, error) {
+	data, err := readTransact(store.db, func(tr fdb.ReadTransaction) ([]byte, error) {
 		return tr.Get(blobDir.Sub("chunkSize")).Get()
 	})
 
@@ -93,7 +93,7 @@ func (store *Store) Blob(id Id) (*Blob, error) {
 		return nil, err
 	}
 
-	chunkSize := int(decodeUInt64(data.([]byte)))
+	chunkSize := int(decodeUInt64(data))
 
 	blob := &Blob{
 		db:                   store.db,
@@ -112,7 +112,7 @@ func (store *Store) Create(ctx context.Context, r io.Reader) (*Blob, error) {
 		return nil, err
 	}
 
-	id, err := store.db.Transact(func(tr fdb.Transaction) (any, error) {
+	id, err := transact(store.db, func(tr fdb.Transaction) (Id, error) {
 		return store.CommitUpload(tr, token)
 	})
 
@@ -120,5 +120,5 @@ func (store *Store) Create(ctx context.Context, r io.Reader) (*Blob, error) {
 		return nil, err
 	}
 
-	return store.Blob(id.(Id))
+	return store.Blob(id)
 }
