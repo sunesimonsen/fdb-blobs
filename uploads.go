@@ -92,7 +92,7 @@ func (store *Store) Upload(ctx context.Context, r io.Reader) (UploadToken, error
 // from the upload and returns its id.
 func (store *Store) CommitUpload(tr fdb.Transaction, token UploadToken) (Id, error) {
 	if token.dir == nil {
-		return "", errors.New("Invalid upload token, tokens needs to be produced by the upload method")
+		return "", errors.New("invalid upload token, tokens needs to be produced by the upload method")
 	}
 
 	uploadDir := token.dir
