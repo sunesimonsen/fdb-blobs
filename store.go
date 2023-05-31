@@ -29,19 +29,19 @@ type Store struct {
 // NewStore constructs a new blob store with the given FoundationDB instance, a
 // namespace ns the blobs are stored under and a list of options.
 func NewStore(db fdb.Database, ns string, opts ...Option) (*Store, error) {
-	dir, err := directory.CreateOrOpen(db, []string{"fdb-blobs", ns}, nil)
+	dir, err := createDirectory(db, directory.Root(), "fdb-blobs", ns)
 	if err != nil {
 		return nil, err
 	}
-	blobsDir, err := dir.CreateOrOpen(db, []string{"blobs"}, nil)
+	blobsDir, err := createDirectory(db, dir, "blobs")
 	if err != nil {
 		return nil, err
 	}
-	uploadsDir, err := dir.CreateOrOpen(db, []string{"uploads"}, nil)
+	uploadsDir, err := createDirectory(db, dir, "uploads")
 	if err != nil {
 		return nil, err
 	}
-	removedDir, err := dir.CreateOrOpen(db, []string{"removed"}, nil)
+	removedDir, err := createDirectory(db, dir, "removed")
 	if err != nil {
 		return nil, err
 	}
