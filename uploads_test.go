@@ -67,7 +67,7 @@ func TestUploadCommit(t *testing.T) {
 		_, err := transact(db, func(tr fdb.Transaction) (any, error) {
 			return store.CommitUpload(tr, UploadToken{})
 		})
-		assert.EqualError(t, err, "Invalid upload token, tokens needs to be produced by the upload method")
+		assert.EqualError(t, err, "invalid upload token, tokens needs to be produced by the upload method")
 	})
 }
 
