@@ -1,9 +1,9 @@
 package blobs
 
 import (
-	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"strings"
 	"time"
@@ -12,7 +12,6 @@ import (
 )
 
 func ExampleNewStore() {
-	ctx := context.Background()
 	db := fdbConnect()
 
 	store, err := NewStore(db, "blob-store-namespace")
@@ -20,9 +19,12 @@ func ExampleNewStore() {
 		log.Fatalln("Could not create store")
 	}
 
-	blob, err := store.Create(ctx, strings.NewReader("Blob content"))
+	blob, err := store.Create(strings.NewReader("Blob content"))
+	if err != nil {
+		log.Fatal("Could create blob")
+	}
 
-	content, err := blob.Content(ctx)
+	content, err := io.ReadAll(blob.Reader())
 	if err != nil {
 		log.Fatal("Could not read blob content")
 	}
@@ -32,11 +34,10 @@ func ExampleNewStore() {
 }
 
 func ExampleStore_Blob() {
-	ctx := context.Background()
 	store := createTestStore(WithIdGenerator(&TestIdgenerator{}))
 
 	r := strings.NewReader("My blob content")
-	_, err := store.Create(ctx, r)
+	_, err := store.Create(r)
 	if err != nil {
 		log.Fatal("Could not create blob")
 	}
@@ -46,7 +47,7 @@ func ExampleStore_Blob() {
 		log.Fatal("Could not retrieve blob")
 	}
 
-	content, err := blob.Content(ctx)
+	content, err := io.ReadAll(blob.Reader())
 	if err != nil {
 		log.Fatal("Could not read blob content")
 	}
@@ -63,21 +64,25 @@ func ExampleStore_CommitUpload() {
 		log.Fatalln("Could not create store")
 	}
 
-	ctx := context.Background()
-
 	r := strings.NewReader("My blob content")
-	token, err := store.Upload(ctx, r)
+	token, err := store.Upload(r)
+	if err != nil {
+		log.Fatal("Could not upload blob")
+	}
 
 	id, err := transact(db, func(tr fdb.Transaction) (Id, error) {
 		return store.CommitUpload(tr, token)
 	})
+	if err != nil {
+		log.Fatal("Could not commit upload")
+	}
 
 	blob, err := store.Blob(id)
 	if err != nil {
 		log.Fatal("Could not retrieve blob")
 	}
 
-	content, err := blob.Content(ctx)
+	content, err := io.ReadAll(blob.Reader())
 	if err != nil {
 		log.Fatal("Could not read blob content")
 	}
@@ -87,16 +92,15 @@ func ExampleStore_CommitUpload() {
 }
 
 func ExampleStore_Create() {
-	ctx := context.Background()
 	store := createTestStore()
 
 	r := strings.NewReader("My blob content")
-	blob, err := store.Create(ctx, r)
+	blob, err := store.Create(r)
 	if err != nil {
 		log.Fatal("Could not create blob")
 	}
 
-	content, err := blob.Content(ctx)
+	content, err := io.ReadAll(blob.Reader())
 	if err != nil {
 		log.Fatal("Could not read blob content")
 	}
@@ -106,7 +110,6 @@ func ExampleStore_Create() {
 }
 
 func ExampleStore_DeleteRemovedBlobsBefore() {
-	ctx := context.Background()
 	db := fdbConnect()
 
 	idGenerator := &TestIdgenerator{}
@@ -116,7 +119,7 @@ func ExampleStore_DeleteRemovedBlobsBefore() {
 	}
 
 	for i := 0; i < 3; i++ {
-		blob, err := store.Create(ctx, strings.NewReader("Blob content"))
+		blob, err := store.Create(strings.NewReader("Blob content"))
 		if err != nil {
 			log.Fatal("Could not create blob")
 		}
@@ -142,7 +145,6 @@ func ExampleStore_DeleteRemovedBlobsBefore() {
 }
 
 func ExampleStore_DeleteUploadsStartedBefore() {
-	ctx := context.Background()
 	db := fdbConnect()
 
 	idGenerator := &TestIdgenerator{}
@@ -153,7 +155,7 @@ func ExampleStore_DeleteUploadsStartedBefore() {
 
 	for i := 0; i < 3; i++ {
 		// Upload without committing the upload.
-		_, err := store.Upload(ctx, strings.NewReader("Blob content"))
+		_, err := store.Upload(strings.NewReader("Blob content"))
 		if err != nil {
 			log.Fatal("Could not create blob")
 		}
@@ -174,11 +176,10 @@ func ExampleStore_DeleteUploadsStartedBefore() {
 	// blob:2
 }
 func ExampleStore_RemoveBlob() {
-	ctx := context.Background()
 	store := createTestStore()
 
 	r := strings.NewReader("My blob content")
-	createdBlob, err := store.Create(ctx, r)
+	createdBlob, err := store.Create(r)
 	if err != nil {
 		log.Fatal("Could not create blob")
 	}
@@ -204,21 +205,25 @@ func ExampleStore_Upload() {
 		log.Fatalln("Could not create store")
 	}
 
-	ctx := context.Background()
-
 	r := strings.NewReader("My blob content")
-	token, err := store.Upload(ctx, r)
+	token, err := store.Upload(r)
+	if err != nil {
+		log.Fatal("Could not upload blob")
+	}
 
 	id, err := transact(db, func(tr fdb.Transaction) (Id, error) {
 		return store.CommitUpload(tr, token)
 	})
+	if err != nil {
+		log.Fatal("Could not commit upload")
+	}
 
 	blob, err := store.Blob(id)
 	if err != nil {
 		log.Fatal("Could not retrieve blob")
 	}
 
-	content, err := blob.Content(ctx)
+	content, err := io.ReadAll(blob.Reader())
 	if err != nil {
 		log.Fatal("Could not read blob content")
 	}

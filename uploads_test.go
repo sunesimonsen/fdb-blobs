@@ -1,8 +1,8 @@
 package blobs
 
 import (
-	"context"
 	"fmt"
+	"io"
 	"log"
 	"strings"
 	"testing"
@@ -17,10 +17,8 @@ func TestUpload(t *testing.T) {
 	store := createTestStore()
 
 	t.Run("doesn't create a blob before it is committed", func(t *testing.T) {
-		ctx := context.Background()
-
 		input := "Hello"
-		token, err := store.Upload(ctx, strings.NewReader(input))
+		token, err := store.Upload(strings.NewReader(input))
 		assert.NoError(t, err)
 
 		uploadPath := token.dir.GetPath()
@@ -42,10 +40,8 @@ func TestUploadCommit(t *testing.T) {
 	}
 
 	t.Run("returns an error for a blob that is not fully uploaded", func(t *testing.T) {
-		ctx := context.Background()
-
 		input := "Hello"
-		token, err := store.Upload(ctx, strings.NewReader(input))
+		token, err := store.Upload(strings.NewReader(input))
 		assert.NoError(t, err)
 
 		id, err := transact(db, func(tr fdb.Transaction) (Id, error) {
@@ -56,7 +52,7 @@ func TestUploadCommit(t *testing.T) {
 		blob, err := store.Blob(id)
 		assert.NoError(t, err)
 
-		content, err := blob.Content(ctx)
+		content, err := io.ReadAll(blob.Reader())
 		assert.NoError(t, err)
 
 		assert.Equal(t, input, string(content), "Content of uploaded blob")
@@ -82,17 +78,16 @@ func TestDeleteUploadsStartedBefore(t *testing.T) {
 	)
 
 	t.Run("Test that old uploads can be cleaned", func(t *testing.T) {
-		ctx := context.Background()
 
 		st.Time = date.AddDate(0, -2, 0)
 		for i := 0; i < 5; i++ {
-			_, err := store.Upload(ctx, strings.NewReader("upload"))
+			_, err := store.Upload(strings.NewReader("upload"))
 			assert.NoError(t, err)
 		}
 
 		st.Time = date
 		for i := 0; i < 5; i++ {
-			_, err := store.Upload(ctx, strings.NewReader("upload"))
+			_, err := store.Upload(strings.NewReader("upload"))
 			assert.NoError(t, err)
 		}
 

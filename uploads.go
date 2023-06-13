@@ -1,7 +1,6 @@
 package blobs
 
 import (
-	"context"
 	"errors"
 	"io"
 	"time"
@@ -10,7 +9,7 @@ import (
 	"github.com/apple/foundationdb/bindings/go/src/fdb/subspace"
 )
 
-func (store *Store) write(ctx context.Context, blobDir subspace.Subspace, r io.Reader) error {
+func (store *Store) write(blobDir subspace.Subspace, r io.Reader) error {
 	chunk := make([]byte, store.chunkSize)
 	var written uint64
 	var chunkIndex int
@@ -20,11 +19,6 @@ func (store *Store) write(ctx context.Context, blobDir subspace.Subspace, r io.R
 	for {
 		finished, err := transact(store.db, func(tr fdb.Transaction) (bool, error) {
 			for i := 0; i < store.chunksPerTransaction; i++ {
-				err := ctx.Err()
-				if err != nil {
-					return false, err
-				}
-
 				n, err := io.ReadFull(r, chunk)
 
 				tr.Set(bytesSpace.Sub(chunkIndex), chunk[0:n])
@@ -62,7 +56,7 @@ func (store *Store) write(ctx context.Context, blobDir subspace.Subspace, r io.R
 
 // Uploads the content of the given reader r into a temporary location and
 // returns a token for commiting the upload on a transaction later.
-func (store *Store) Upload(ctx context.Context, r io.Reader) (UploadToken, error) {
+func (store *Store) Upload(r io.Reader) (UploadToken, error) {
 	id := store.idGenerator.NextId()
 
 	uploadDir, err := store.uploadsDir.Create(store.db, []string{string(id)}, nil)
@@ -83,7 +77,7 @@ func (store *Store) Upload(ctx context.Context, r io.Reader) (UploadToken, error
 		return token, err
 	}
 
-	err = store.write(ctx, uploadDir, r)
+	err = store.write(uploadDir, r)
 
 	return token, err
 }

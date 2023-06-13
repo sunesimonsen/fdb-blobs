@@ -1,7 +1,6 @@
 package blobs
 
 import (
-	"context"
 	"log"
 	"os"
 	"strconv"
@@ -46,10 +45,9 @@ func createTestBlob() *Blob {
 	st := &SystemTimeMock{Time: date}
 
 	store := createTestStore(WithSystemTime(st), WithIdGenerator(&TestIdgenerator{}))
-	ctx := context.Background()
 
 	r := strings.NewReader("My blob content")
-	blob, err := store.Create(ctx, r)
+	blob, err := store.Create(r)
 
 	if err != nil {
 		log.Fatal("Could not create blob")

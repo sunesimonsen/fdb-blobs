@@ -2,7 +2,6 @@ package blobs
 
 import (
 	"bytes"
-	"context"
 	"crypto/rand"
 	"testing"
 	"time"
@@ -21,8 +20,7 @@ func TestLen(t *testing.T) {
 			_, err := rand.Read(input)
 			assert.NoError(t, err)
 
-			ctx := context.Background()
-			blob, err := s.Create(ctx, bytes.NewReader(input))
+			blob, err := s.Create(bytes.NewReader(input))
 			assert.NoError(t, err)
 
 			want := length
@@ -42,8 +40,7 @@ func TestCreatedAt(t *testing.T) {
 		_, err := rand.Read(input)
 		assert.NoError(t, err)
 
-		ctx := context.Background()
-		blob, err := s.Create(ctx, bytes.NewReader(input))
+		blob, err := s.Create(bytes.NewReader(input))
 		assert.NoError(t, err)
 
 		createdAt, err := blob.CreatedAt()

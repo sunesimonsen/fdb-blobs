@@ -1,7 +1,6 @@
 package blobs
 
 import (
-	"context"
 	"fmt"
 	"io"
 
@@ -106,8 +105,8 @@ func (store *Store) Blob(id Id) (*Blob, error) {
 }
 
 // Creates and returns a new blob with the content of the given reader r.
-func (store *Store) Create(ctx context.Context, r io.Reader) (*Blob, error) {
-	token, err := store.Upload(ctx, r)
+func (store *Store) Create(r io.Reader) (*Blob, error) {
+	token, err := store.Upload(r)
 	if err != nil {
 		return nil, err
 	}
