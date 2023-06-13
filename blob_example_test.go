@@ -1,24 +1,10 @@
 package blobs
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"log"
 )
-
-func ExampleBlob_Content() {
-	ctx := context.Background()
-	blob := createTestBlob()
-
-	content, err := blob.Content(ctx)
-	if err != nil {
-		log.Fatal("Could not get blob content")
-	}
-
-	fmt.Printf("Blob content: %s", content)
-	// Output: Blob content: My blob content
-}
 
 func ExampleBlob_CreatedAt() {
 	blob := createTestBlob()
@@ -47,10 +33,7 @@ func ExampleBlob_Len() {
 func ExampleBlob_Reader() {
 	blob := createTestBlob()
 
-	r, err := blob.Reader()
-	if err != nil {
-		log.Fatal("Could not get blob reader")
-	}
+	r := blob.Reader()
 
 	lr := io.LimitReader(r, 10)
 

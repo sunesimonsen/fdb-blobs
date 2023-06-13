@@ -1,8 +1,6 @@
 package blobs
 
 import (
-	"bytes"
-	"context"
 	"io"
 	"time"
 
@@ -44,49 +42,11 @@ func (blob *Blob) CreatedAt() (time.Time, error) {
 	return time.Unix(int64(decodeUInt64(data)), 0), err
 }
 
-// Returns the content of the blob as a byte slice.
-func (blob *Blob) Content(ctx context.Context) ([]byte, error) {
-	var b bytes.Buffer
-	var buf = make([]byte, blob.chunkSize*blob.chunksPerTransaction)
-	r, err := blob.Reader()
-
-	if err != nil {
-		return b.Bytes(), err
-	}
-
-	for {
-		err := ctx.Err()
-		if err != nil {
-			return b.Bytes(), err
-		}
-
-		n, err := r.Read(buf)
-
-		if n > 0 {
-			_, err := b.Write(buf[:n])
-			if err != nil {
-				return b.Bytes(), err
-			}
-		}
-
-		if err == io.EOF {
-			return b.Bytes(), nil
-		}
-
-		if err != nil {
-			return b.Bytes(), err
-		}
-
-	}
-}
-
 // Returns a new reader for the content of the blob.
 //
 // New chunks are fetched on demand based on the chunk size and number of chunks
 // per transaction configured for the store.
-func (blob *Blob) Reader() (io.Reader, error) {
-	_, err := blob.CreatedAt()
-
+func (blob *Blob) Reader() io.Reader {
 	reader := &reader{
 		db:                   blob.db,
 		dir:                  blob.dir,
@@ -94,5 +54,5 @@ func (blob *Blob) Reader() (io.Reader, error) {
 		chunksPerTransaction: blob.chunksPerTransaction,
 	}
 
-	return reader, err
+	return reader
 }

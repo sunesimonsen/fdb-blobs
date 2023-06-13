@@ -21,6 +21,10 @@ func (store *Store) RemoveBlob(id Id) error {
 		removedPath := append(store.removedDir.GetPath(), string(id))
 		dst, err := blobDir.MoveTo(tr, removedPath)
 
+		if err != nil {
+			return err
+		}
+
 		unixTimestamp := store.systemTime.Now().Unix()
 		tr.Set(dst.Sub("deletedAt"), encodeUInt64(uint64(unixTimestamp)))
 

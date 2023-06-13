@@ -2,9 +2,9 @@ package blobs
 
 import (
 	"bytes"
-	"context"
 	"crypto/rand"
 	"fmt"
+	"io"
 	"log"
 	"strings"
 	"testing"
@@ -19,11 +19,10 @@ func TestCreateRead(t *testing.T) {
 	t.Run("a newly created blob can be extracted with the returned id", func(t *testing.T) {
 		text := "my-blob"
 
-		ctx := context.Background()
-		blob, err := store.Create(ctx, strings.NewReader(text))
+		blob, err := store.Create(strings.NewReader(text))
 		assert.NoError(t, err)
 
-		data, err := blob.Content(ctx)
+		data, err := io.ReadAll(blob.Reader())
 		assert.NoError(t, err)
 
 		assert.Equal(t, text, string(data))
@@ -37,11 +36,10 @@ func TestCreateRead(t *testing.T) {
 			_, err := rand.Read(input)
 			assert.NoError(t, err)
 
-			ctx := context.Background()
-			blob, err := store.Create(ctx, bytes.NewReader(input))
+			blob, err := store.Create(bytes.NewReader(input))
 			assert.NoError(t, err)
 
-			data, err := blob.Content(ctx)
+			data, err := io.ReadAll(blob.Reader())
 			assert.NoError(t, err)
 
 			assert.Equal(t, input, data, "length: %d", length)
@@ -53,29 +51,15 @@ func TestCreate(t *testing.T) {
 	store := createTestStore(WithChunkSize(100))
 
 	t.Run("returns a blob with the correct content", func(t *testing.T) {
-		ctx := context.Background()
-
-		blob, err := store.Create(ctx, strings.NewReader("Hello"))
+		blob, err := store.Create(strings.NewReader("Hello"))
 		assert.NoError(t, err)
 
 		assert.True(t, 0 < len(blob.Id()))
 
-		content, err := blob.Content(ctx)
+		content, err := io.ReadAll(blob.Reader())
 		assert.NoError(t, err)
 
 		assert.Equal(t, "Hello", string(content))
-	})
-
-	t.Run("returns an error if the context is cancelled", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		input := make([]byte, 200)
-		_, err := rand.Read(input)
-		assert.NoError(t, err)
-
-		cancel()
-
-		_, err = store.Create(ctx, bytes.NewReader(input))
-		assert.EqualError(t, err, "context canceled")
 	})
 }
 
@@ -88,9 +72,8 @@ func TestBlob(t *testing.T) {
 	})
 
 	t.Run("returns an error for a blob that is not fully uploaded", func(t *testing.T) {
-		ctx := context.Background()
 
-		token, err := store.Upload(ctx, strings.NewReader("Hello"))
+		token, err := store.Upload(strings.NewReader("Hello"))
 		assert.NoError(t, err)
 
 		uploadPath := token.dir.GetPath()
@@ -102,23 +85,6 @@ func TestBlob(t *testing.T) {
 }
 
 func TestRead(t *testing.T) {
-	store := createTestStore(WithChunkSize(100))
-
-	t.Run("returns an error if the context is cancelled", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		input := make([]byte, 200)
-		_, err := rand.Read(input)
-		assert.NoError(t, err)
-
-		blob, err := store.Create(ctx, bytes.NewReader(input))
-		assert.NoError(t, err)
-
-		cancel()
-
-		_, err = blob.Content(ctx)
-		assert.EqualError(t, err, "context canceled")
-	})
-
 	t.Run("supports reading blobs with a different chunk size than the store", func(t *testing.T) {
 		db := fdbConnect()
 		ns := "test-" + ulid.Make().String()
@@ -128,7 +94,6 @@ func TestRead(t *testing.T) {
 			log.Fatalf("Can't create blob store %v", err)
 		}
 
-		ctx := context.Background()
 		input := make([]byte, 400)
 		_, err = rand.Read(input)
 		assert.NoError(t, err)
@@ -138,7 +103,7 @@ func TestRead(t *testing.T) {
 		for _, chunkSize := range chunkSizes {
 			store, err := NewStore(db, ns, WithChunkSize(chunkSize))
 			assert.NoError(t, err)
-			blob, err := store.Create(ctx, bytes.NewReader(input))
+			blob, err := store.Create(bytes.NewReader(input))
 			assert.NoError(t, err)
 			ids = append(ids, blob.Id())
 		}
@@ -147,7 +112,8 @@ func TestRead(t *testing.T) {
 			blob, err := store.Blob(id)
 			assert.NoError(t, err)
 
-			content, err := blob.Content(ctx)
+			content, err := io.ReadAll(blob.Reader())
+			assert.NoError(t, err)
 
 			assert.Equal(t, input, content)
 		}
@@ -162,11 +128,10 @@ func FuzzChunkSizes(f *testing.F) {
 
 		store := createTestStore(WithChunkSize(chunkSize), WithChunksPerTransaction(chunksPerTransaction))
 
-		ctx := context.Background()
-		blob, err := store.Create(ctx, bytes.NewReader(input))
+		blob, err := store.Create(bytes.NewReader(input))
 		assert.NoError(t, err)
 
-		data, err := blob.Content(ctx)
+		data, err := io.ReadAll(blob.Reader())
 		assert.NoError(t, err)
 
 		assert.Equal(t, input, data, "chunkSize: %d, chunksPerTransaction %d", chunkSize, chunksPerTransaction)

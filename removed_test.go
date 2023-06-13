@@ -1,8 +1,8 @@
 package blobs
 
 import (
-	"context"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -14,9 +14,7 @@ func TestRemoveBlob(t *testing.T) {
 	store := createTestStore(WithChunkSize(100))
 
 	t.Run("can't retrieve blob after it is removed", func(t *testing.T) {
-		ctx := context.Background()
-
-		blob, err := store.Create(ctx, strings.NewReader("blob"))
+		blob, err := store.Create(strings.NewReader("blob"))
 		assert.NoError(t, err)
 		err = store.RemoveBlob(blob.Id())
 		assert.NoError(t, err)
@@ -27,14 +25,12 @@ func TestRemoveBlob(t *testing.T) {
 	})
 
 	t.Run("already retrieved blobs are accessible", func(t *testing.T) {
-		ctx := context.Background()
-
-		blob, err := store.Create(ctx, strings.NewReader("blob"))
+		blob, err := store.Create(strings.NewReader("blob"))
 		assert.NoError(t, err)
 		err = store.RemoveBlob(blob.Id())
 		assert.NoError(t, err)
 
-		data, err := blob.Content(ctx)
+		data, err := io.ReadAll(blob.Reader())
 		assert.NoError(t, err)
 
 		assert.Equal(t, "blob", string(data))
@@ -52,11 +48,9 @@ func TestDeleteRemovedBlobsBefore(t *testing.T) {
 	)
 
 	t.Run("Test that old uploads can be cleaned", func(t *testing.T) {
-		ctx := context.Background()
-
 		st.Time = date.AddDate(0, -2, 0)
 		for i := 0; i < 5; i++ {
-			blob, err := store.Create(ctx, strings.NewReader("content"))
+			blob, err := store.Create(strings.NewReader("content"))
 			assert.NoError(t, err)
 			err = store.RemoveBlob(blob.Id())
 			assert.NoError(t, err)
@@ -64,7 +58,7 @@ func TestDeleteRemovedBlobsBefore(t *testing.T) {
 
 		st.Time = date
 		for i := 0; i < 5; i++ {
-			blob, err := store.Create(ctx, strings.NewReader("content"))
+			blob, err := store.Create(strings.NewReader("content"))
 			assert.NoError(t, err)
 			err = store.RemoveBlob(blob.Id())
 			assert.NoError(t, err)

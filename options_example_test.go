@@ -1,15 +1,14 @@
 package blobs
 
 import (
-	"context"
 	"fmt"
+	"io"
 	"log"
 	"strings"
 	"time"
 )
 
 func ExampleWithChunkSize() {
-	ctx := context.Background()
 	db := fdbConnect()
 
 	store, err := NewStore(db, testNamespace(), WithChunkSize(256))
@@ -17,12 +16,12 @@ func ExampleWithChunkSize() {
 		log.Fatalln("Could not create store")
 	}
 
-	blob, err := store.Create(ctx, strings.NewReader("Blob content"))
+	blob, err := store.Create(strings.NewReader("Blob content"))
 	if err != nil {
 		log.Fatal("Could not create blob")
 	}
 
-	content, err := blob.Content(ctx)
+	content, err := io.ReadAll(blob.Reader())
 	if err != nil {
 		log.Fatal("Could not read blob content")
 	}
@@ -32,7 +31,6 @@ func ExampleWithChunkSize() {
 }
 
 func ExampleWithChunksPerTransaction() {
-	ctx := context.Background()
 	db := fdbConnect()
 
 	store, err := NewStore(db, testNamespace(), WithChunksPerTransaction(10))
@@ -40,12 +38,12 @@ func ExampleWithChunksPerTransaction() {
 		log.Fatalln("Could not create store")
 	}
 
-	blob, err := store.Create(ctx, strings.NewReader("Blob content"))
+	blob, err := store.Create(strings.NewReader("Blob content"))
 	if err != nil {
 		log.Fatal("Could not create blob")
 	}
 
-	content, err := blob.Content(ctx)
+	content, err := io.ReadAll(blob.Reader())
 	if err != nil {
 		log.Fatal("Could not read blob content")
 	}
@@ -55,7 +53,6 @@ func ExampleWithChunksPerTransaction() {
 }
 
 func ExampleWithSystemTime() {
-	ctx := context.Background()
 	db := fdbConnect()
 
 	now, _ := time.Parse(time.RFC3339, "2023-01-01T00:00:00Z")
@@ -66,7 +63,7 @@ func ExampleWithSystemTime() {
 		log.Fatalln("Could not create store")
 	}
 
-	blob, err := store.Create(ctx, strings.NewReader("Blob content"))
+	blob, err := store.Create(strings.NewReader("Blob content"))
 	if err != nil {
 		log.Fatal("Could not create blob")
 	}
@@ -81,7 +78,6 @@ func ExampleWithSystemTime() {
 }
 
 func ExampleWithIdGenerator() {
-	ctx := context.Background()
 	db := fdbConnect()
 
 	idGenerator := &TestIdgenerator{}
@@ -91,7 +87,7 @@ func ExampleWithIdGenerator() {
 	}
 
 	for i := 0; i < 3; i++ {
-		blob, err := store.Create(ctx, strings.NewReader("Blob content"))
+		blob, err := store.Create(strings.NewReader("Blob content"))
 		if err != nil {
 			log.Fatal("Could not create blob")
 		}
