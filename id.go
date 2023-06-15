@@ -35,7 +35,7 @@ func (_ UlidIdGenerator) NextId() Id {
 // Id generator that returns incremental blob ids.
 //
 // This is only useful for test scenarios.
-type TestIdgenerator struct{ nextId int }
+type testIdgenerator struct{ nextId int }
 
 // Returns ids of the following form:
 //
@@ -43,7 +43,7 @@ type TestIdgenerator struct{ nextId int }
 //	blob:1
 //	blob:2
 //	...
-func (idGen *TestIdgenerator) NextId() Id {
+func (idGen *testIdgenerator) NextId() Id {
 	id := Id(fmt.Sprintf("blob:%d", idGen.nextId))
 	idGen.nextId++
 	return id

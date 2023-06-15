@@ -34,7 +34,7 @@ func ExampleNewStore() {
 }
 
 func ExampleStore_Blob() {
-	store := createTestStore(WithIdGenerator(&TestIdgenerator{}))
+	store := createTestStore(WithIdGenerator(&testIdgenerator{}))
 
 	r := strings.NewReader("My blob content")
 	_, err := store.Create(r)
@@ -112,7 +112,7 @@ func ExampleStore_Create() {
 func ExampleStore_DeleteRemovedBlobsBefore() {
 	db := fdbConnect()
 
-	idGenerator := &TestIdgenerator{}
+	idGenerator := &testIdgenerator{}
 	store, err := NewStore(db, testNamespace(), WithIdGenerator(idGenerator))
 	if err != nil {
 		log.Fatalln("Could not create store")
@@ -147,7 +147,7 @@ func ExampleStore_DeleteRemovedBlobsBefore() {
 func ExampleStore_DeleteUploadsStartedBefore() {
 	db := fdbConnect()
 
-	idGenerator := &TestIdgenerator{}
+	idGenerator := &testIdgenerator{}
 	store, err := NewStore(db, testNamespace(), WithIdGenerator(idGenerator))
 	if err != nil {
 		log.Fatalln("Could not create store")

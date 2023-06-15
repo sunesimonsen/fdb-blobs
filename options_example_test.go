@@ -80,7 +80,7 @@ func ExampleWithSystemTime() {
 func ExampleWithIdGenerator() {
 	db := fdbConnect()
 
-	idGenerator := &TestIdgenerator{}
+	idGenerator := &testIdgenerator{}
 	store, err := NewStore(db, testNamespace(), WithIdGenerator(idGenerator))
 	if err != nil {
 		log.Fatalln("Could not create store")

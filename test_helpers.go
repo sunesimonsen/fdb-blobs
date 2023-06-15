@@ -44,7 +44,7 @@ func createTestBlob() *Blob {
 	date, _ := time.Parse(time.RFC3339, "2023-01-01T00:00:00Z")
 	st := &SystemTimeMock{Time: date}
 
-	store := createTestStore(WithSystemTime(st), WithIdGenerator(&TestIdgenerator{}))
+	store := createTestStore(WithSystemTime(st), WithIdGenerator(&testIdgenerator{}))
 
 	r := strings.NewReader("My blob content")
 	blob, err := store.Create(r)
